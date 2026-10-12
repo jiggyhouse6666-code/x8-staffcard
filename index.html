@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>X8 STAFF CARD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0a09; --bg-elev:#15130f; --surface:#1b1814; --border:#332c22;
+  --text:#f3efe6; --text-dim:#c9c0ad; --text-faint:#8d8370;
+  --gold-grad:linear-gradient(135deg,#f4d998,#c89a4a); --danger:#d9534f;
+  --radius:16px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{
+  background:var(--bg); color:var(--text); font-family:'Noto Sans JP','Hiragino Sans',sans-serif;
+  min-height:100vh; padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) 0;
+}
+.wrap{max-width:460px; margin:0 auto; padding:28px 20px 60px;}
+header{text-align:center; margin-bottom:26px;}
+.brand{font-family:'Playfair Display',serif; font-weight:700; font-size:26px; letter-spacing:2px; color:var(--text);}
+.brand span{background:var(--gold-grad); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.subtitle{font-size:12.5px; color:var(--text-faint); margin-top:4px; letter-spacing:0.5px;}
+
+.hint{font-size:12.5px; color:var(--text-faint); line-height:1.6; margin:0 0 16px;}
+.field-label{font-size:12.5px; color:var(--text-dim); margin:0 0 6px;}
+
+.dropzone{
+  border:1.5px dashed var(--border); border-radius:var(--radius); padding:26px 14px;
+  text-align:center; background:var(--surface); margin-bottom:18px; cursor:pointer;
+  transition:border-color .15s;
+}
+.dropzone:hover{border-color:#5a4d34;}
+.dropzone.has-photo{padding:14px;}
+.dz-title{font-size:13.5px; font-weight:500; margin-bottom:3px;}
+.dz-hint{font-size:11.5px; color:var(--text-faint);}
+.dz-thumb{max-width:100%; max-height:140px; border-radius:8px; display:block; margin:0 auto 10px;}
+
+.card-input{
+  width:100%; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  color:var(--text); font-size:15px; font-family:inherit; padding:11px 12px; box-sizing:border-box;
+  margin-bottom:16px; -webkit-appearance:none;
+}
+.card-input:focus{outline:none; border-color:#8a713a;}
+.card-input::placeholder{color:var(--text-faint);}
+.card-input:disabled{opacity:0.6;}
+
+.name-toggle{display:flex; gap:8px; margin-bottom:10px;}
+.name-toggle-btn{
+  flex:1; background:var(--surface); border:1px solid var(--border); border-radius:20px;
+  color:var(--text-dim); font-size:12.5px; font-family:inherit; font-weight:500;
+  padding:8px 10px; cursor:pointer; transition:background .15s, color .15s, border-color .15s;
+}
+.name-toggle-btn.is-active{background:var(--gold-grad); color:#241a05; border-color:transparent; font-weight:700;}
+.field-hint{font-size:11.5px; color:var(--text-faint); margin:-10px 0 14px; min-height:14px;}
+
+#kanjiSelect{
+  -webkit-appearance:none; appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24'><path fill='%23c9c0ad' d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat:no-repeat; background-position:right 14px center; background-size:14px;
+  padding-right:36px;
+}
+
+.preview-wrap{display:flex; justify-content:center; margin-bottom:20px;}
+#cardCanvas{
+  width:100%; max-width:300px; height:auto; display:block; border-radius:10px;
+  border:1px solid var(--border); box-shadow:0 14px 36px rgba(0,0,0,0.55); background:#000;
+}
+
+.btn{
+  display:block; width:100%; border:none; border-radius:12px; padding:14px 18px;
+  font-size:15px; font-weight:700; font-family:inherit; cursor:pointer; text-align:center;
+  letter-spacing:0.5px;
+}
+.btn.gold{background:var(--gold-grad); color:#241a05;}
+.btn.gold:active{filter:brightness(0.95);}
+
+#toast{
+  position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%) translateY(20px);
+  background:var(--danger); color:#fff; padding:10px 16px; border-radius:20px; font-size:13px; font-weight:600;
+  z-index:200; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; max-width:80%; text-align:center;
+}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+/* 保存用オーバーレイ: ページから一切遷移せず、生成した画像をその場で
+   見せて、Safari標準の「長押し→写真に追加」で保存してもらうための画面。
+   download属性やWeb Share APIなど「自動の保存操作」に一切頼らない。 */
+.save-overlay{
+  position:fixed; inset:0; background:rgba(5,4,3,0.97); z-index:500;
+  display:flex; align-items:center; justify-content:center;
+  padding:calc(20px + env(safe-area-inset-top,0px)) 20px calc(20px + env(safe-area-inset-bottom,0px));
+}
+.save-overlay-inner{ width:100%; max-width:460px; display:flex; flex-direction:column; align-items:center; gap:16px; }
+.save-hint{ color:var(--text); font-size:14.5px; text-align:center; line-height:1.7; }
+.save-hint b{ color:#f4d998; }
+.save-overlay-img{
+  max-width:100%; max-height:58vh; border-radius:10px; border:1px solid var(--border);
+  box-shadow:0 14px 36px rgba(0,0,0,0.55);
+  -webkit-touch-callout:default; -webkit-user-select:auto; user-select:auto;
+}
+.save-overlay-close{ max-width:280px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">X8 <span>STAFF CARD</span></div>
+    <div class="subtitle">スタッフカード作成ツール</div>
+  </header>
+
+  <div class="hint">写真をアップロードすると、名前とロゴ入りのカードを自動で作成します。写真は縮小せずそのままの画質で書き出されます。名前はスタッフ名簿から選べます（名簿の読み取りのみ行う単独のツールです。書き込みは一切しません。写真は保存されないので、開くたびに選び直してください）。</div>
+
+  <div class="dropzone" id="dropzone" data-action="pick">
+    <div class="dz-title" id="dzTitle">クリックして写真を選択</div>
+    <div class="dz-hint">カードごとに毎回、画質を落とさないため新しい写真を選んでください</div>
+  </div>
+  <input type="file" accept="image/*" id="fileInput" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;">
+
+  <div class="field-label">名前</div>
+  <div class="name-toggle" id="nameToggle">
+    <button type="button" class="name-toggle-btn is-active" id="modeRosterBtn" data-mode="roster">名簿から選ぶ</button>
+    <button type="button" class="name-toggle-btn" id="modeManualBtn" data-mode="manual">直接入力</button>
+  </div>
+  <select id="kanjiSelect" class="card-input">
+    <option value="">読み込み中…</option>
+  </select>
+  <input type="text" id="kanjiInput" class="card-input" maxlength="14" autocomplete="off" placeholder="例：山田太郎" style="display:none;">
+  <div class="field-hint" id="nameModeHint"></div>
+  <div class="field-label">ローマ字</div>
+  <input type="text" id="romajiInput" class="card-input" maxlength="24" autocomplete="off" placeholder="例：MAYA" style="margin-bottom:6px;">
+  <div class="hint" style="margin:0 0 18px;">カードには自動で大文字で表示されます。</div>
+
+  <!-- 2026-10-12 その2: 「プレビュー動いてないよ？」の指摘で判明した配置ミス
+       の修正。このスライダーは元々ドロップゾーンの直下(写真選択のすぐ後)に
+       置いていたが、効果が出る先の#cardCanvasはこのページのずっと下(名前・
+       ローマ字欄を挟んだ先)にあり、スマホ画面ではスライダーとプレビューが
+       同時に画面内に収まらなかった。ユーザーはスライダー付近(動かない
+       ドロップゾーンのサムネイル)を見ながら操作していたはずで、それだと
+       実際には更新されているcanvasの方は視界に入らず「動いていない」ように
+       見えて当然だった。コード自体(redrawPreview/drawStaffCard)は動作検証
+       済みで正しく動いていたので、原因はロジックではなく配置。スライダーを
+       実際に値が反映されるプレビューcanvasのすぐ上に移動し、ドラッグ中に
+       指で両方を同時に視界へ収められるようにした。 -->
+  <div id="photoPosField" style="display:none;">
+    <div class="field-label">写真の縦位置(頭を上に)</div>
+    <input type="range" id="photoVOffset" min="0" max="50" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
+    <div class="field-hint">このすぐ下のプレビューを見ながら動かすと、頭の上の余白を詰められます</div>
+  </div>
+
+  <div class="preview-wrap"><canvas id="cardCanvas"></canvas></div>
+
+  <button class="btn gold" id="downloadBtn">カードをダウンロード</button>
+</div>
+<div id="toast"></div>
+
+<div class="save-overlay" id="saveOverlay" style="display:none;">
+  <div class="save-overlay-inner">
+    <div class="save-hint">この画像を<b>長押し</b>して<br>「写真に追加」を選ぶと保存できます</div>
+    <img class="save-overlay-img" id="saveOverlayImg" alt="スタッフカード">
+    <button type="button" class="btn gold save-overlay-close" id="saveOverlayClose">閉じる</button>
+  </div>
+</div>
+
+<script type="module">
+'use strict';
+/* =========================================================================
+   X8 STAFF CARD — スタッフカード作成（単独版）
+   otokohon（男本/イケメンリスト）に組み込んでいた同機能を、2026-10-12に
+   ユーザーの指示で切り出した完全スタンドアロン版として作成。切り出した
+   直後は「そもそも他の機能と同時に動いていたことが原因では」という推測の
+   もとでFirebaseとの通信も一切なしにしていたが、同じ固まる症状がこの
+   スタンドアロン版でも再現したため、原因はFirebase接続の有無ではないと
+   判明した。
+   同日中に方針転換: 「名前を打ってる最中に固まるなら、そもそも打たせず
+   名簿から選ばせればいい」という案で、config/staff を読み取り専用で
+   購読し、名前（漢字）をタップ選択できるようにした。書き込みは一切行わ
+   ない（config/staff・timecheck配下の他データは完全に読み取り専用）。
+   名簿にいない新人などのために「直接入力」モードも残してあるが、こちら
+   は以前のように1キーごとに再描画するのをやめ、入力が一瞬止まってから
+   （またはフォーカスが外れてから）まとめて再描画する方式に変更し、連続
+   入力中は再描画自体が走らないようにしてある（ローマ字欄も同様。こちら
+   はFirebase側に対応データが無いため常に手入力のまま）。
+   otokohon内部やこのページ自身で過去に試した対策（フォント計算の高速化
+   /IME変換中のスキップ/requestAnimationFrameでの再描画まとめ/プレビュー
+   用に縮小した画像を使う）はいずれも無駄ではないのでそのまま引き継いで
+   あり、他の処理（出退勤管理、ギャラリー表示など）は持たない最小構成の
+   ままにしている。
+
+   ピッカー導入直後、実機で「タッチしても何も起きない／画面全体が固ま
+   っている」という報告があり、調べたところ原因はFirebase SDKの読み込
+   み方法そのものにあった。ファイル先頭でのstatic import（import {...}
+   from "https://www.gstatic.com/..."）は、ESモジュールの仕様上、その
+   読み込みが失敗または止まった場合にモジュール全体が一切実行されなく
+   なる――写真アップロードやモード切替ボタン、ダウンロードなど、Fire
+   baseと無関係な機能も含めて全滅する。この環境でのテストではgstatic.
+   comの読み込みが常に高速に成功するため再現しなかったが、実機のネット
+   ワーク状況（回線が細い、何かにブロックされている等）次第では起こり
+   得る不具合だった。対策として、SDKの読み込みをdynamic import
+   （import(...)を関数として呼ぶ形）に変更し、非同期の即時関数＋
+   try/catchの中に隔離した。これにより、Firebaseの読み込みが失敗・停止
+   しても、ページの他の部分は何の影響も受けず正常に動作する。5秒タイム
+   アウトのフォールバックは、この非同期処理の外側で同期的に登録してあ
+   るため、読み込みが止まったままの場合でも確実に発火する。
+
+   写真の読み込みでも実機報告があり、iPhoneのカメラ標準フォーマット
+   HEICが<img>タグへのblob URL読み込みで稀に失敗するWebKitの既知の癖
+   が疑われたため、createImageBitmapで先に読み込みを試し、ダメなら
+   従来の<img>方式にフォールバックする二段構えにした。
+
+   ダウンロード(保存)でも複数回、実機報告があった: 「ダウンロードまで
+   できたのに画像が出て固まる、右上のボタンにすら反応しない」。まず
+   <a download>によるblob保存→Web Share API優先、の順で対策したが、
+   いずれも実機では解決しなかった。iPhoneのSafariでは、<a download>
+   がdownload属性を無視してblob URLへの「ページ遷移」として扱うことが
+   あり、Web Share APIも機種/iOSバージョンや設定次第で挙動が変わるため
+   、結局「何か特別な保存操作を自動で起こそうとする」こと自体が、この
+   実機環境では当てにならないと判断した。さらに画面収録でのログ取得も
+   試みたが、この端末には画面収録機能自体が使えない(会社支給端末の
+   管理プロファイルによる制限の可能性が高い)ため、実機側のログを見て
+   原因を特定する手段も使えなかった。
+   そこで方針転換: ページ遷移や共有シートなど「自動っぽい」保存を一切
+   やめ、生成した画像をこのページの中にそのまま表示し、Safari最古参か
+   つ最も枯れた機能である「画像の長押し→『写真に追加』」で保存しても
+   らう方式にした。<a download>のblob URL遷移も、Web Share APIの機種
+   依存も、画面収録ログも一切不要になる、最後の手段的なアプローチ。
+
+   保存まで解決した後、今度は参考画像付きで「ロゴが消えとる」「名前欄/
+   ロゴ欄を薄い黒にしてほしい」という報告があった。最初、drawStaffCard()
+   が名前欄・ロゴ欄にも写真をそのまま全面描画しているだけで背景の塗り
+   つぶしが無いのが原因と考え、名前欄・ロゴ欄の両方をSTAFFCARD_BAND_
+   COLOR(#0a0908)で塗りつぶす形にしたが、これは参考画像の誤読による
+   誤った修正だった(しかも置き場所のケアレスミスでTDZ(Temporal Dead
+   Zone)のReferenceErrorまで起こし、drawStaffCard()を呼ぶたびに例外に
+   なって写真読み込みのcatchに飛び、「写真を読み込めませんでした」と
+   いう無関係なエラーになっていた。すぐ上のredrawScheduled/schedule
+   Redrawのコメントに書いていた教訓と同じ種類のミス。カード描画に関わ
+   る定数は全てSTAFFCARD_DIV1_FRAC等と同じ場所(setNameMode('roster')
+   が呼ばれるより確実に手前)にまとめて置くことで直した)。
+   その後ユーザーから「そんな画像は送っていない」と強い指摘があり、
+   参考画像をあらためてピクセル単位で測り直したところ、黒く塗りつぶさ
+   れているのは名前欄(麻弥/MAYA の帯)だけで、ロゴ欄側は塗りつぶしでは
+   なく写真がそのまま続いて見えており(被写体が黒い服を着ているので
+   たまたま暗いだけで、角には壁の地の色も写り込んでいた)、その上に
+   白ロゴを重ねているだけと判明。ロゴ欄まで塗りつぶしていた分を戻し、
+   写真をそのまま見せるようにした上で、「ロゴが消える」方の対策は
+   cardDrawLogoBlock()側でロゴの後ろにradial gradientの薄い黒を敷く
+   形に変更した。参考画像そのものを写真として読み込ませてほぼ同じ構図
+   のカードを生成し直し、実測値と見た目の両方で参考画像と一致すること
+   を確認した上で直した。
+   ただしこの時点ではradial gradientではなくctx.shadowBlurで実装してい
+   て、この検証環境(Chromium)の小さいテスト画像では問題なく見えてい
+   た。実機で試したところ「ロゴが半分消えとる」「長押しがまたできな
+   い」という報告があり、原因はおそらくshadowBlurの値をbandH(カード
+   高さに比例)に対する割合で決めていたこと: iPhoneで撮った実際の写真
+   は数千px四方になるため、そこから計算されるshadowBlurの値もかなり
+   大きくなり、実機のSafari/WebKitとこの検証環境のChromiumとで大きい
+   shadowBlurの挙動が食い違っていた可能性が高い(このプロジェクトでは
+   他の箇所でも繰り返しWebKit特有の癖に当たってきた)。ブラウザのシャ
+   ドウ描画任せにするのをやめ、自前でradial gradientを塗る確実な方式
+   に直接書き換えた。
+   同じタイミングでdownloadNow()自体も見直した。よく見ると、full解像度
+   のcanvasに対してcanvas.toBlob()とcanvas.toDataURL()の両方を実行して
+   いて、しかも結果を使わないtoBlob()の方は完全に無駄だった。toDataURL
+   ()は同期処理でメインスレッドを止める。iPhoneで撮った実際の写真は
+   数千px四方(12MPで3024x4032など)あるので、それを2回分(うち1回は
+   無意味)PNGエンコードするのは実機では重く/不安定になりうる--「長押し
+   がまたできない」「ロゴが半分消える」の両方がこれで説明がつく(画像
+   生成自体が実機で詰まる/壊れる)。canvas.toBlob()1回だけにまとめ、
+   書き出し形式もPNGからJPEG(quality 0.93)に変更して容量も縮小した
+   (写真が主体のカードなのでPNGの可逆圧縮はほぼ恩恵が無く、ファイル
+   サイズだけが肥大化していた)。
+   この時点で、結果の持たせ方をbase64のdata URLからURL.createObjectURL
+   ()のblob URLに変えてもみたが、これで実機から「今度は画像が全く出な
+   い」という報告が来た。このページはhttpサーバー越しではなくfile://
+   として直接開く前提で、file://文書内で作ったblob URLをSafari/WebKit
+   が正しく解決できない(読み込めない)という既知の癖があり、それが
+   原因だった可能性が高い。そもそも<a download>のblob URL遷移が実機で
+   効かなかったのと根っこは同じ「file://とblob系APIの相性の悪さ」。
+   ここは確実に動くと分かっている方のdata URLに戻しつつ、生成そのもの
+   は引き続きcanvas.toBlob()(非同期)+ FileReader.readAsDataURL()でdata
+   URL化する形にして、メインスレッドを止めやすい同期のtoDataURL()は
+   避けている(URL.createObjectURL/revokeObjectURLは使わなくなったので
+   削除した)。
+   検証は、この環境で模擬できる範囲で可能な限り厳しくした: 実際のiPhone
+   写真と同じ解像度(3024x4032)の合成テスト写真を作り、生成時間・
+   バイト数・実際にデコードできるかを計測(数百ms・1.5MB前後で問題な
+   し)、さらに同じページで保存を4回連続して押しても毎回壊れずに新しい
+   画像が出ることも確認した。ただしfile://文書上でのblob URLの件が示す
+   通り、WebKit固有の挙動そのものはこのChromium環境では再現しきれない
+   ため、最終的には実機での確認待ち。
+
+   上記のdata URL化で保存自体は実機で直ったが(「出来た」と確認)、
+   「ロゴがきえとる」という同じ趣旨の報告がそれでもまだ続いた。つまり
+   radial gradientによる保険が実機ではまだ不十分だった。ここで初めて、
+   この検証環境内に実在するロゴ画像(X8GROUP_LOGO_DATAURL、上記)を
+   実際に読み込んでcanvas上に書き出し、ピクセル単位で測って気づいた
+   ことがある: このロゴはアイコン(X字マーク)と「X8GROUP」の文字が
+   縦に重なった、横長というより正方形に近いが左右にも十分な幅を持つ
+   図柄で、radial gradientは「円」にしか均等にかからない。中心からの
+   距離が遠い左右の端・四隅ほど急激に薄くなるため、明るい写真を背景に
+   すると「X8GROUP」の文字の左右の端が本当にほとんど見えなくなる
+   (実際に自前のテスト写真(明るい壁・フラット)で再現させて確認した:
+   旧radial gradientは、最も濃い中心部分でさえ背景との距離が判定基準
+   を大きく超えて不十分で、四隅や文字の両端は実質素通しだった)。
+   shadowBlur→radial gradientと、2回続けて「薄く/柔らかく保険をかける」
+   方向の対策が2回とも実機で不十分だったため、方針を転換: 微調整では
+   なく、写真の内容に一切左右されない確実な方式にした。cardDrawLogoBlock
+   ()内で、ロゴの外形(アイコン+文字の実際のbounding box)に左右16%・
+   上下38%の余白を持たせた角丸四角形(cardRoundRectPath()で自前実装。
+   ctx.roundRect()はこの環境での対応実績を検証していないため使わず、
+   最古参のarcTo()で手動にパスを組んでいる)を、フェード無しの単色
+   不透明(STAFFCARD_BAND_COLOR、名前欄と同じ色)で敷いてからロゴを
+   重ねる形にした。内部に濃淡の変化が一切無いので、背景の写真がどれ
+   だけ明るくても柄があっても、チップの内側は完全に隠れる。
+   合成テスト写真(通常解像度・12MP実機相当解像度 × 暗めのグラデー
+   ション・明るいフラット壁の計4パターン)で生成した実画像を、Python
+   (PIL/numpy)でピクセル単位で再検証: チップの四隅(角丸の円弧が始まる
+   直前の最も薄くなりやすい地点)と四辺中央を実測したところ、旧radial
+   gradient版は明るい壁の写真に対してはband全体で判定基準(目標色との
+   距離45未満)に一度も届かなかったのに対し、新しいチップ版は全パターン
+   ・全プローブ地点で距離1〜3程度(JPEG圧縮由来の誤差レベル)まで一致
+   し、四隅を含めて写真の透けが実測上ゼロになっていることを確認した。
+   ========================================================================= */
+
+const X8GROUP_LOGO_DATAURL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAjkAAAJiCAYAAAAlotNZAABonUlEQVR42u2dZ5hW1dWG7wHsMbEnVixJ7LElmmjsxmiiCBIsiFQBWywURUVsKEoTUVEUpCl2ijUxGhVLNMbe9bPXxB6DJQLz/dh74ss45T3nPXWv576uuZSZU/Zeuz1nl7Xq6uvrEUIIIYQIjTYygRBCCCFCpF2g+eoI1HkR15DHL4GbKv7eQJ3/70L/35tqfPe+wM2qWkIIITIeOzr4/7b1/61cqplTcc0y/v8XAIv8dXMkcorLcUAfYDO1EyGEECI2zwCTgXEhZKYugD05nYBpwPKqm0IIIUTNfA70AGZL5BSDF4ANVS+FEEKImnkR2CiEjISy8fgS1UkhhBBCY2oldQEdIZ+E25cjhBBCiHhMBg4LJTMhHSE/DBiq+imEEELEYmhIAic0kQNwNnCq6qkQQggRiVP9GBoUdYF6PO4LTCBcP0BCCCFEEiwAjgQuDzFzoXo8vhw4GHhf9VcIIYRokvf9WHl5qBmsMxC7ai7feoEUQgghhPPuv1/omawzEqDzz8CeqtNCCCEEdwC/tZBRKwE6fwtcqXothBDCOFdaETiWRA7Aobjz/0IIIYRFJvux0AxtjBXwYQR4RE4IIYRohbMJzAeORE7TDEVOA4UQQmjcCx4rG4+b4lhgELCW6r8QQogAeRsYDVxg1QCWRU4DrwLrqS0IIYQIiNeA9a0boY3qAesD98kMQgghAuE+CRyJnEp2AubJDEIIIUrOPD+mCYmcxdgZ+dIRQghRXq70Y5mQyGmSQ3GBPYUQQogyMQFjPnAkcuJxFHCKzCCEEKIknOLHLtEIna5qnj8C42UGIYQQBeYY4EKZoWk0k9M8F/rK875MIYQQomC8L4HTOprJqY5/AqvJDEIIIQrAv4Afygyto5mc6jgMeF5mEEIIkTPPYzAGVVw0kxONfwDbyAxCCCFy4FHg5zJD9WgmJxo/B+6SGYQQQmTMXRI4EjlZsAfypSOEECI7JvixR0jkZMJRwBiZQQghRMqMQT5wYqM9ObVxIHCNzCCEECIFDgKulRnio5mc2rgW50b7M5lCCCFEQnzmxxYJnBrRTE5yvA60lxmEEELUwBvAujJDMmgmJznWRb50hBBCxOd5CRyJnCKzCXC7zCCEECIit/sxREjkFJrfAbfKDEIIIarkVj92CImcUrAPMFxmEEII0QrD/ZghUkAbj9NlJDBYZhBCCNEEo4ATZAaJnDIzADkOFEIIsTgDgbEyg0ROCPQDJsoMQgghgP7AZTJD+mhPTjZcBhwAvCZTCCGEWV7zY4EETkZoJid7nkXHBIUQwhrPAZvKDNmimZzs2RSYITMIIYQZZkjgSORYojswTWYQQojgmeb7fCGRY4qe6NSVEEKEzBjf1wuJHJMMQk4DhRAiRIb7Pl7kiDYeF4PjgPNlBiGECILjgXEyg0SO+JZDgCtlBiGEKDXdgKtkhmKg5aricJVvHM/LFEIIUTqel8ApHprJKSZPAj+TGYQQohQ8BWwhMxQPzeQUky2AeTKDEEIUnnkSOBI5Ijo7A3NlBiGEKCxzfV8tJHJEDDqizchCCFFErvR9tJDIETVwKDBCZhBCiMIwwvfNQiJHJMDJwDBgkUwhhBC5scj3xSfLFOVAp6vKRSdcoLflZAohhMiU+bjZm9kyRXnQTE65mI3zw/C+TCGEEJnxvu97JXBKhmZyyssLwIYygxBCpMqLwEYyQznRTE552Qh4QmYQQojUeEICRyJH5MdWwM0ygxBCJM7Nvo8VEjkiRzoAs2QGIYRIjFm+bxUSOaIAdAZOlBmEEKJmTvR9qgiAEDYenwTsDjwOPIjt3e+DgFGq1kIIEYvBwGjD+e8EbI9bpruLABzRtgugUH7qRc7u/t9nA0ONVtDRuKOO09AsnRBCVMsioAe2w+gMB06p+PdbIWQqhIHwk0b/PgW4zHBFvRI4APhI/ZYQQrTKR77PtCxwLmskcJoaWyVycqIptdkX5xnYKjcCqwAPq/8SQohmedj3lTcatsEMP2ZWM7aWjlCcAb4CrN/E72cD+xtvxPOAHdWXCSHEYtwH7GTcBrNw+3Aa8yqwQQgZDGXfRnO+YjoBLxmvxDsB49WfCSHE/xgvgcNLzQiclsZUiZycuKeFv/0EN9NzkOHKfCxwkfo1IYTgIt8nWuUgPyb+JOaYWipCil31UiuFtgg4BLjGcOU+AximPk4IYZQzgdOMC5yraHmC42XcqeUgCOmY8e1V5PUqoL/hCn4ado/XCyFsM9S4wOlfhcCpZiwtFaFFIf+G6nz/WHf4dAJwnvo8IYQRTgRGGs5/tY5iFwBLhJTx0BzGzavyulG4pRurjMQ5vhJCiNDpYVzgnEH1nvDnhZb50ETOXyNcOwy4xXDFnw50Ax5RHyiECJBHfB833bANbiHaPsy/hmaA0JarABZGFG/3ALsa7wz+AuyhPlEIEQh3Ar8xboO7gV0iXL8IaBuaEUKMb3RTxOt3Ad4z3hh+g20P0UKIcJghgcN7EQVOnLFTIicn7olxz49wLqwPNNwougMT1D8KIUrMBN+XWeVAP5b9KKOxs/CEuFwFLhL3D2Peeyi2A7WNBgaqrxRClIwxuFNEVulG/Bn5f8YURoWnTaCFPbuGe6cBPQ03lEESOUKIkjHQuMDp6ceuPMZMiZwcuKNGm0wBTjLcYMYCxwEfqe8UQhSYj3xfNdawDU7yY1Yt4/kdoRon1OUqgEeBrWt8xqnAcOOdyBvAOupLhRAF402gvXEbDAXOqvEZjwHbhGqgNgEXfhLn/c/ChaK3THvgGfWnQogC8YwEDrMSEDhJjZWFJeSZHICkMncLsK/xBnU/sIP61lb5wnca//X/XuQ/Juoq6mN9o4+Mev+zyP+7baMPkTr/t3r/tzqcP6jK5yz0P3XAko2eUd/oHfX+ujYVv6fid4sq0tJUGr7TjzR6TsPzG35olN66ivRVpq2u4u91LbyrTSN7NaSxTaM01jVKd11FXirT1pC+/1bYuG3F8xvSW19h46bSsLCRveoq6gCN8ldfUTfwZbYbsKyaUKs8APzauA1uBvZJSgdI5JSX24C9E3rWk8CWxhvWPGBH9bEtMhoXG02IqIzC9ubZargP2Mm4DZ4AtkjoWbcDvwvZWG0Crwx/TvBZWwBPG29cOwHXqJ9tkaVkAqG6kwrXSODwdIICJ+kxspCEPpMD8HfgFwk+70PccUXL8VCuArqqz22St4G1ZQYRg7eAtWSGJpkJHGI4/91xfoBWSfCZjwDbhm64NgYqR9KuqlfB+SPoZ7jBHUK0oG+WWAs4QmYQETlCAqdZhhkXOP38mLNKws+9yYLxLMzkQHIbkBtzuXGxcwJwBrC0+uHFuAcFfRXRiBpM0QJfAacBIw3b4DKgb1rjvwUDtjFSUR5K6bl9gfGGG+BInCtx6wFOG7MLcKTMIKrkSAmc7/Ce71ssC5zxKQqch6wY0YrIuS3FZ/8RuMFwQ7wRWAPnmEt8SyeZQKiuxOJN36fcaNgGN/ixpYxjYqGwslwFbsPwyik+/yZgP+OdU9KbvEvfvmQCUQX1MsH/MLEZthXmAh1SfP5HJL+/p7C0MVRx/pby8zvg1tUtsy3Oj4VwTJYJhOpI1dwngcPdKQucLMZCiZycuDODd+wCPGe8ke4ETFJ/Dbhj9l1kBtEMXZArhgYmIR84z5HN3qw7LRnVksi5AJifwXs2Bv4PONpwY+2LbT9CDSwtkSNaETk6mej6ir6G83+0HzM2zuBd8/1YKJETKLdk9J4NgAuBAYYbbg9giPpvugCdZQbRiM4SwOD7iB6G8z/AjxUbBDYGSuTkRNZ7ZsYAZxtuwOeR7gmBsvB7mUCoTnyHP/o+wipn+zEi5DEwdyydrmrgBWDDjN95MbaXr/rhAlcubzT/XwDLaUwTFczHbsTxz3GBSC8zXP4XAUdl/M4XgY2sGbqNwco1K4d3HgVMNNygLwO+D7xrNP/LAqdoXBeeUwwLnHd9X2BZ4EzMQeDkNfbljsWZHICFOQm84MPaV8FdwG4G8/0Oik0kHG8DaxrM91+B3Y2X/W3A3jm8dxHQ1qLB2xitaHkdodsbmAd0NNzId/dCxxpr4qaohW0uMipw7jIucDr6vn/vnN5/p1XDWxU5eQ6yOwJXY/vEzR64EwXW2F9jvHks1oELfZu3Smff5+9odMyTyMmBkWTjM6c5lgamAYcZbvjHYC/43urYjlpvnX6+Dljra48xXOaH+b4+T39I8zEc6LSN4cp3e87vXw64HDjWcBmcCJxhLM8dNdabxVrZn+HbuFWO9X183icrb7fc6CyLnDsKko5xuOOUVjnd2Jfe3uRzskLky1Hktx8jD47xbdsqg3zfrrFOIic3Lqc4wSRHAecbLosL/SDwiZH8dkBYw0qZf+Lb8oWGy/p836cXgfv8WGcWq0fIGxhMsdYqL0d7Nj4BVrDQ9jTum8JCR/spsKLxcr6MYsXhOqFAgisX2hivkEUr/L7A08bLpDfuqGXoTNG4bwYLZT3Pt13LPE3xAo2Ost74rM/kAPwd+EXB0vQ8sInxcvkT8NuA8/cVcChwgzRA0PwBmEHY0cb/DOxlvJyfI5so4lF4BNjWegO0PpMDxdx5vjFu6teyL529gLkB529p4AA1v+A5IHCBM9e4wOns++qNC5i229X8NJPTwBvAOgVM13ygF3C94bIZT9iRzHsA09UEg6Q7zkdKqFyIbR84XXBLkUUMvvsm0F5NUDM5Dfy1oOlaDrgOOM5w2RwDXBp4RylUtmXjUuMC5zjfNy9X0PT9Vc1PIqeSewqevvOBgYbL5wjC9SW0j5pfsIRatoN8m7TKQIrv8uMeNT+JnEqm4ZasisxoYJLhMhoDDAA+CDBvQ9QEVaYl4APfBscYLtdJvi8uMm8Q9jKpRE5MbitBGvvgAr1Z5XxgNeCFwPKlJavwCK1MX/Btz7LT0qt9H6yxTCKnlNxTknQeBNxpvKw2Bp4KKD9bAyerCQbDyb5MQ+Epinl6KEvu9H2vxrKSodNV360cO5ckrY8CP1fHw+6B5EW+kcKhiD5T4nIXsIfx8vwHsE1J0novsIua4LdoJmdxyuSYbRvc2uvBhstrD+DhQPKyMe44uSg3PQISOA8bFzgH+z52mxKlWc5FG6GZnO/yAbBKidL7BXAIMMdwmU3D+SQpO7ei01Zl5xbg9wHkY7px0d0RuApYtkRp/hBYVU1wcTST813KFpZ+Wd8hDTJcZj0Iw5fO71H8nzLTOxCBc6lxgTPI96nLlizdd6gJSuRUw/0lTPPyuEBsww2X2xHA0QHko5OaoMouR47Gtg+c4b4vXV5jVxhouapp3gLWKmnaJwOHGf+avrzkAr5OTbCUlLkzXYSLoH2F4fKbRDmOiDfF28DaaoLfRTM5TfOXEqe9Dy7qsVWuwO1Req3EebhETVBlliGv+TZjWeDMKLHAKfuYJZGjChOZbtjeiHwNsH6JhU533MZHUQ46Ut6N76/5tnKN4fKb4/tMjVkSOWa4GphX8jzsBzxovBzXx512KRvLAnupGZaGvSjfJlV821jfeNk96PvKMjMP257wJXJiEsJO9V/5Rnyg4XLcF5hbwnR3VRNUWaXIXN82rHKg7xt/pbEqbLTxuGVCMc5/cZsKpxsuy9GUL5L7xYRxYixkLgKOKlmax2Db5UR33OGEJUMZx9UMm0czOS3zTCD5WBLnMO84w2U5CDi1ZGlW4E6VUdKcalzgHOf7wlAEzjNqghI5tTArsPycD5xiuDyHA8NKlN7VgAFqhoVlgC+jsjAM2760TiG8KOqz1AxbRstVrfN34BeB5elM4DTDZdoPmFiStD5EGPsGQuRvwC9Lktb+wGWGy+qMkn3gVMMjwLZqhi2jmZzWuSvAPA0Dphou08uAw4GPS5DWX1K+ZTYLnFoSgfOxr+uWBc7UAAVOqGOTRE5OX9Ih0gPbvjEmAj2Bj0qQ1j+oGapMYvCRr+MTDZfTNYQbh+shNUOJnCSYCzwVaN4OBN7F7lHSm3ER5+8ueDp/BhyqplgYDvVlUmTu9nX7ZqNltK/v20J1n/EU5XSNIZFTUG4NOG+r4+JdWfbLshsws+Bp3F/NUGVRJTN9nbZKV9+nra4xSWjjcfUsNCAK++KC1FllMi7AZ1HpDUxRU8yVXhQ7xtMVlDsGU60chvOBEzKLgLZqitWhmZzqsTDtezm2I5j3Ac4pcPq0N0dl0BLnSOAEL3CsjEUSOapYqQody750TsEdNy0iv1MzVBk0wxlqtyYEjkSORE5qTAbeM5LX4cAQw2V9OsV11T9OTVG2b8RRvs5aZQh2nBy+58ciIZGTCrcZyusI4FrDZT0BOBZ4s2Dp6q5mKNt73vR1dILhMrnW91Uag4RETgLcbSy/B2Dbbfh4oD3weIHStCJwiZpi5lzibV8UHvd1c7zhMpnl+yiNQaJZdLoqOs8DGxnL8xPAVsbLvUjhPb4EDkZ+MrJiP+BqYJmCpEfu/J3I29JYnl8ANlZzjIZmcqJzj8E8bwm8brzctwVuKkhalsGuA8c82LdAAucmCRxeNyhwrI49EjmqaJnRHngH5ybe8hd9UZxw6Ti5PVvf6uugVXr6Pqi9xh4hkZMe12J3XXQNnDO6bobLfx/gwgKk4weEGXSwaAzzts6bC33ds0o33/esYTT/d2P7IIhETg5fVJaZBgw1nP9jcEdWF+Scjv3UFIO38QJf144xXAZDfZ+jMUdERhuP4yPDOQdkpxvOfxfc6ZYf5ZiGYcBZqoqpcCpwZo7vf9+Lm+sNl8HpwGmqitTJBBI5WfMg8CuZgblAR+M2eBtYM6d3PwVsoWqYCk+SX7Txd4C1jNt/DpqtBPgbsL3MEA8tV8VH04eO/ZDvhrVwx3rz4GfYjleUFn1yFDiPSOBwtwSOxpok0ExObcwDdpQZALgP2Mm4DZ4GNsupE9xHVTBRbgF+n8N7nwE2V7+qflX9ajJoJqc27pAJ/seOOGdVltkcN8WeNb8HeqgKJkaPnATOHAkcXpDA0RgjkVMchssEi7Eh8ApwkGEbdCKf6WX5zSm3LW/1dccqB/m+Y0NVP40xEjnF4i8ywWKsD1wFHGLYBvsAF+fwzs6qfjXTmeyX/i7G9nLjIb7PWF/VT2OLRE7x+JNM0GS9uhI4z7ANjib76Mh7quqVzoYjfF2xynm+r9BYpLElFbTxOBneANaRGZrkCmyf/ukHjAWWy+BdH/j3zVG1i0VH4DJg1QzeNR8Y4N9nlclAb1W7JnkTu+ErEv/iFlLcadIbuM5w/i8DugNfZ/CuVYHfqcrF5ncZCZyvfZ2wLHCuk8DRmCKRUx7ukglapAtwr+H8zwIOxTnuS5uuaBNyHP7gbZc2T/m6MMuwre/1fYLQmCKRU6KvkpdkhhbZCdvHIa/HeSZ+NOX3LAfsouoWmV1If0nxUV8HLIdpuAP5fWmNl7A9+y2RU1D+LBO0ym+AV43b4Oe4kyRpIk+xxbPZVb7sLfOq7wOExhKJnBJyt0xQFevhYj1ZjqrcDZia4vPXAgarqlXNYNINozDVl7lVjvFtfj1VNY0lEjnlZTbwD5mhKtYELgCGGLZBL2B0is/vpGpWCFuN9mVtlSG+ra+palYV//BjiZDIKSR/lQkiMQI42/gMQlozWr8CjlcVa5Xjva3S4Bhsz6idTfa+ojSGiMWQn5zkmQ8sKzNE4jKgv/Gv3bNT+Oh4ENhB1atFHgC2T/iZi4BTgHMN23UizmeTqJ4vyMaflik0k5M8c2WCyPQDxhnO/7kpibzt0VHdluiSgsDBl6VlgTNOAkdjh0ROuNwpE8TiWGyfKpgE9AX+L+HndlTVysw2/+fLcJJhm/7Zt2WhsaMQaLkqHf4NLC8zxOI+YDxwg2EbPAVsnuDzegLTVLUWowfJnnB7GviZYXv+AbcHaUdVrVh8DnxfZkgezeSkg6LHxmdHXMA+yydSfkayjhM7qFqlapM7jAucXr7NSuBozJDIMYLijtTGUrjAnocbtsFvSW6mYX8Jne8InP0TetZUX1ZWOdy31aVUrTRmSOTY4XLgJpmhZi4Bhhn/Qp6Y0LN2UXVK3BYTsT3jOMy3UVEbN/kxQ0jkSJkb5AzgBONfyn9M4Dl7o9kcvA32TuA5f8T2TOMJvm0KjRUSOUa5BPhaZkiE83C+dKxyEW7z8Mc1PGMjFBgRb4ONarj/Y18WFxm24WW+TYra+RrNhknklBgFWkuOvsY7g2lAb+CzGp7RWdWoJht85svA8km1S3xbFBojJHIE82SCRDncuE3nAn1wx5XjsK7xL/DzvA3i8LS3vWWHbfOwvUSnMaKEyE9O+rwOtJcZEsW6TxJwjsN2j3HfGzUM9Fbb4l3AHsbrW9K+m4TttpgZmslJH0WUTZ7Nfafb0bAN9sDFXYpKe+Bog/Y6OqbAecC4wOkogaOxocxoJicbZOR0eB9Y3bgNrgK6xhi4f23MTvcTPVjpTOAQ4/XrPeBH6mrSGX9lgvTRTE423C0TpMKPgLexHQzwEC90orADMNCQjQbGEDhXGRc4/XzbksDRmCCRI1pFO+jTY02cUzbLQQG7ET3q9QGG7BM1r+d6m1rlWN+m1lT3ojGh7Gi5Kju+AdrJDKnSEMnbKifjHLRVW8/2I3zP3B2o/kTUAuA04BzDdehy4DB1JamyAFhCZsgGzeRkh7xaps9hwI2G838OcBDwSpXX72nAJtXm8RVvO8sC50YJHI0FEjkiLg/IBJmwPzDL+ED1Y+DNKq49lLBDPXTweWyNN73NLAvkWSQXtFRoLJDIMci5uJMKIn06Af8wboP2wG2tXPN9YJ+AbbCPz2NL3Ib8WP3DtxmRPu8Rff+ckMgpDbfIBJmxDfAQtoNS/h64tZVrDg44/63l7VZvI6t08G1kG3UXGgMkckQS3CUTZMp2uFMiHQ3bYB9gagt//x4wIsB8j/B5a46phD2L1RodfdvYTt2ExoCQ0emq7HkbHc3Mmo9xG0rHGLbBZFxwyaZ4FtgssPw+A2zazN+uwMWhsspA3Em8ldQ1ZMo7wFoyQ7ZoJid7bpMJMmclYDRhzlhUSx9geDN/27SFv5WR4S0InOHGBc4I3xYkcNT3S+SIVPgL8B+ZIReGGBc6pwJHNfO3kPamNJeXo7wNLAucIeoGcuE/vu8XEjnBcz2tbwYV6Qqd6YbzP8EP9h80+v2WwJEB5O9In5dKPvB5nmC43KdL4OTKrb7vFxI5JtC0Zb4cCkwxLnT64/YIVLJiAHlrnId3fF4tC5wpVOcvSKjPl8gRiX1V/UtmyJWewIOG8z8btwnySmA+bnP2VwHk6yufl/k+b2v5vFrlQV/XRX78C9uzx7mi01X5MRXoITPkzhPAWGCGTCEC4lBgAN9duhPZM01CMz80k5Mf98oEhWBL3PHqgTKFCISBvk5L4KivN49mcvLlcXVEhRscxsoMosQMwLY/qKLxBLCVzJAfmsnJl5tlgkIxBjhbZhAl5WwJHPXxYnE0k5M/nwI/kBkKxVnAMJlBlIgzse0DqIh8BqwgM+SLZnLy5z6ZoHCcitvTIEQZmCyBo75dSOQUFflPKCa9aTmwpRBFYCrNxyQT6tvNo+WqYvAWCtxWVB4DtpEZRAF5FNhaZigkbwNrywz5o5kcKX7RMlsDr8sMomC8LoGjPl1I5JSFe2SCQtMe+AjoK1OInOnr62J7mUJ9umgdLVcVh/uBHWSGwtMHuEJmEDnQG22ILwMPAL+WGYqBZnKKw10yQSmYDJwuM4iMOV0CR325iI5mcoqFCqM8nAoMlxlEBgzF+W4SJRlXZYLioJmcYvGMTFAazgKukxlEylwngaM+XEjkhMItMkGp6IJbfxciDR7wdUyoDxcx0XJV8XgDWEdmKBUPok3jInmBs73MUCreRKfeCodmcorHn2SC0rE98KrMIBLiVQkc9d1CIidU7pQJSsl6wItAV5lCxKSrr0PryRTqu0UyaLmqmDwObCkzlJJvgF7AVTKFiMAhwBRgCZmilDwBbCUzFA/N5BSTO2SC0rIEMB0YJlOIKhnm64wEjvpsIZFjgvtlgtK3qzPQ0V/ROmf5uqK+WH22SAEtVxWXvwB7yAylZwbQXWYQTTAdOFRmKD13Ar+RGYr7xSmKiaLYhsGhwL0yg2jEvRI46qtF+mgmp9i8DawpMwTBHcBvZQYB/BnYU2YIgneAtWSG4qKZnGKjQG/hsCfwssxgnpclcNRHC4kcoQYUIj/GOXqTLx17dPVl/2OZQn20yA4tVxWf15Gr8NBYAPTGbUoW4XMocAXQTqYIijeAdWWGYqOZnOJzk0wQHO1wJ2sGyhTBM9CXtQSO+mYhkSOaQK7Cw2U0cJHMECwX+TIW6puFRI5o4WvhdpkhWI4CRskMwTHKl60Ik9vRTI5EjkiMu2WCoBkEXCMzBMM1vkyF+mSRM9p4XB5UUOFzPXCAzFBqrgO6yAzhj50yQTnQTE55uEcmCJ4uwHMyQ2l5TgJHfbGQyBHx+ItMYIKNgbeAHjJFaejhy2xjmUJ9sSgWWq4qF/8AtpEZzDAQGCszFJoBwBiZwQyPAj+XGcqDZnLKxZ9lAlOMAfrJDIWlnwSO+mBRbDSTUz5UYPYYDQyWGQrFKHSCyuSYKROUC83klI97ZAJzDELLVkVirASO+l4hkSPS4a8ygUmOB2bKDLkz05eFUN8rSoCWq8rJl8DSMoNJZgP7ywy5MAvoJDOY5CtgGZmhfGgmp5zcKBOYpRPwoMyQOQ9K4KjPFRI5Ihvkp8E2vwJulhky42Zvc6E+V5QMLVeVlw+BlWUG2+1XJsgEdZK2+QhYRWYoJ5rJKS+LZAIhhFBfKyRyQqMbsKrMYJq7ZALZWmTCqr7PFRI5IiN2lwlM8yCwh8yQGXugzd7qc0Up0Z6ccvIFOs5olauBrjJDLswEDpYZTPIlsKzMUD40k1M+hkjgmOUKCZxc6erLQNhjGd/3CokckTJ7yQQmOQ3oIzPkTh9fFkJ9rygBWq4qHyowe5wKDJcZCsVQ4CyZwd6YKROUC83klIsRMoE5ekrgFJLhvmyE+mAhkSMSYk+ZwAz/Bg4HpskUhWWaL6N/yxTqg4VEjqiNocDWMoMJngB+AEyUKQrPRF9WT8gUJtja98VCIkckzN4ygQkeALaSGUrHVr7shPpiUSC08bg8qKDCZzrQQ2YoNdOA7jJD+GOnTFAONJNTDobJBMFztQROEPTwZSnUJwuJHFElHWSCoBmJnPyFRFdfpkJ9spDIEa3QGdhGZgiW0cCJMkNwnOjLVoTJNr5vFhI5okYUiDFMPgOOAgbLFMEy2JfxZzKF+maRD9p4XHzeBVaXGYLiHeBoYI5MYYKOwEXAmjJFULwHrCEzFBvN5BSb/hI4wXEfsJYEjinm+DK/T6YIitV9Hy0kckRMNB0aFvcAO8kMZtnJ1wGhPlpI5AgNiEFxBbCrzGCeXX1dEOqjhUSOaQYDq8kMQTAN6CMzCE8fFJMsFFZDhwckckQsOsoEQXAmilYtvktPXzeE+mohkWOOzsD2MkPp6Q+cJjOIZjgNbVwNge2RzxyJHBGJnWWCUvO+/1K/TKYQrXCZryvvyxTqs0XyyE9OMXkVWE9mKCUfAqvKDCIGHwCryAyl5DVgfZmheGgmp3h0lsApLU8DfWUGEZO+vg6J8rEeWrKSyBFV8TuZoJQ8A/wMOfkT8Znj69AzMoX6biGREyq/lQlKx1+AzWUGkRCb+zol1HcLiZygOA/Ftykbc4E9ZQaRMHv6uiXKw5q+DxcSOaIZfiMTlIqLkY8MkR4dfR0T6sNFTHS6qlioMMpDb2CKzCAyoBcKBVGqcVUmKA6aySkOI2SCUvAfoJ8EjsiQKb7O/UemUF8uIipOzeQUhheADWWGQvMZ0B24SaYQOdABmA78QKYoNC8CG8kMxUAzOcWgtwRO4XkJWEECR+TITb4OviRTFJoNfZ8uJHKEZyeZoNA8IhEqCjaIPiIzqE8XraPlqmLwKZqCLiqzkCdTUUxuBPaXGQrJZ7hZN5EzmsnJn4ESOIVluASOKDCdfR0VxeMHvm8XEjnm2VsmKCRjgVNlBlFwTvV1VahvF02g5ar8mQ8sKzMUimOAC2UGUSL+CIyXGQrFF8ByMkO+aCYnX4ZJ4BSOQRI4ooRc6OuuKA7L+j5eSOSYRVFri/XVdSAwxli+R+A8bc8HjgwgP0f6vNRjzynbGF+Hv1BzVh8vJHLyphuwncxQCJ7FTStfZyzfDwFDKr46lwkgT8vw7ezoEJ9HS1zn6/KzataFYDvf1wuJHHPsIhMUgpnAZsbyfBDOw3Zjkf15AHn7vIlB5gWfZ0ts5uu2UF9vGm08zo/3gR/KDLlyNdDVoMC5uonf/51wZhYfBrZt4vcHA9cYFPEHq6nnyj+BH8kM+aCZnHzoLoGTOyMMCpwjcLGPmuLPAeWzubxM9zawRFcUMDJvfuj7fCGRYwZtRsuXC4GTjeV5FDABWKKJv71AWKdAhvk8NWYJb4NRxsr+ZHRiUH2+RI7IiG7AfjJDbpyI84NjifNp+Xjx7QHmuaU8DfI2scQxvu6LfNgPbUDOBe3JyZ4pQE+ZIReOxZ7DtNto3fNqXaB5b61zu93gF/YxwAXqCnJhKtBLZsgWzeRkz14yQea8A/Q2KHDuq0LgTA44/63lbW9vI0uM923hHXUL6vstoJmcbOkKXCUzZMpbwDoG8/1GFfn+FFgxcDt8QuvRoN8E2husI28Ca6uLyJRD0NH+TNFMjpR8yNxrUOB0Bl6vMt9TDdijmjyu421mLeL8Or6NCI0BwaKZnGz5EFhZZsiE+4EdjeV5ANHCUtQZsUuUTm4g9qJ63wf8Wl1GJnwErCIzZIdmcrJjoAROZlwhgdMq8wzZJkpex3hbWmJH32ZE+qzsxwIhkRMcu8oEmTAW6GMszyOIHlj0WkP2iZrXMdhzoNcHezNYGgsMoOWq7JCh02U+cBo2o4gPiXjPn2j91FVo3E70/RDnAicZs9NA4AxckE+R4tgrE2SDZnKy4TyZIFX+A3zPoMC5LobAAZunO+LkeQj2ItOP8W3pP+pWNCZI5Ihq2VsmSI2XsBkXZhbQJcZ9rwMzDNprhs97VLp4W1uju29bQmOCRI5okX2BzWWGVHgD2BCYbSzfDwGdYt57o+H6EjfvnbzNLTHbt6031M2kwuZ+bBASOaVnN5kgFR4A1jWY738B28W8911ajmEVOoO8DeKwnbe9Ndb1bU1obJDIEU2yj0yQOPdiz6/HEcAXwKo1PGOaqk5NNljVl8ERxmz2a+Q0UGODRI5ogiOBH8sMiXItsIuxPPcHJgDL1PCMl4CTVX04mdr2mizjy6K/Mbvtgi23A1nwYz9GCImc0rK7TJAoJwAHGcvzcODSBJ5zk6pPora41JeNJQ7ybVBojCgN8pOTLl8CS8sMiQmcUcbyPJrkvKPKL8fiJNXxjcHePqfBwEhVoUT4itpmaEUraCYnPfpK4CQ2GB1iUOBcl6DA0TJDejYZiD1fOqN8m9QXcu0s7ccKIZFTOrSprHbeB7phz3ndfcTzgdMUiyRymhU5ixJ6VhdfZpaY6dvm+6pKGiuKjJar0qEPMElmqIlngc0M5vsxYKsEn3cF9mJ5VctkoHeCz3sc2NqgHZ8BNlV1qonDfH0UCaOZnHSQk6fauNuowHk3YYED2nCcpW22Ir4fnjKzmW+zQmOGRI4R9pAJYjMee06y+gEfAqsn/NwngLmqUs0y19soSVb3ZdnPmC13821XaMyQyAmcbiiCb1wmAccay/ORwERg5RSePUNVKhcbrezL1JoPlGPRMn1clvNjh5DIKTwKvBaPYdg7ZXAOcHFKz74fGKtq1Spjva3S4GJfxpbo69uy0NghkRMoWluNztnAWcbyfB1wUorP14mqYtjqJOwdMT/Lt2mhsUMiJzDOAJaXGSJxDDDUWJ5nk9wR8aZ4H7hIVatqLiLdo9BdfJlbYqhv26J6lvdjiJDIKSy7yASROBy40FieHwU6pvwOzeIUz2Ydfdlb4kLfxoXGkNyQn5xkkTGr42X/xXKVoTz/ATgT2Djl93xIbZHKLfMBsErK73get2flBkN2PQQ4DfiJqlh147JMkByayUmO0TJBVTwN/NSYwOmI25excQbvukJVrNC229jXhY6G7HqVb/NPq4ppLMlcMWomJzFe0pdKq8z0X3WWOBTnP2SFDN71KrCBqllNvAKsn8F7PsXtWbF2zP8qoKuqWYu87EWhSADN5CRDZwmcVplqUOAMBqZnJHAArlY1K40NV/B1Y7Ax+x7i+wLRPD/xY4qQyCkMv5MJWuQ0oJdBgTMy43cOVVUrnQ1HGhQ6vXyfIDSmSOSUhD1lgmY5Frfh1hKTchA4M1XVSmvLkdjzFHwm9ryba0yRyCklxwBryQzf4U2gO/bi2cwkn6jf16jKldqWfQwK1fG+j3hTVe47rIX8DCWCNh7Xzm3IHXdj3jEq/B4j+Sji1TDDDxYiOabjNo1nzePA1gbt/TawpqrdYtyOlq1qRjM5tSOBszhPGBU4D+ckcABmqdoFY9OtfF2yxlokHxFeY4uQyKmRE2SCxXgux4E+T/4JbJvTu58E5qjqJc4cb9s82NbXKWts5fsQoTFGIqcgKKDat/wJ2NRYnrsCHwGr5ZiGGap6Qdp2NV+3rPmU2dT3JUJjjEROzpwE/FpmANzUvrWp1fNwjs1WyjENdwNjVP1SY4y3cV6s5OvYecbsvjdagm3g136sERI5maMNYY7x2HNcNZxiTCNfr+pnwsYn+Dpnic7YO5mpsSYFdLoqPjKcO31ypbE8TwV6FCAdH5DvMpkl/kUxgp5OA3oas303tCQLCtoZG83kxOMU4/n/yA/01gTOjIIIHAzaXrZ2dW+GQdv38H2OxhwRXR1qJicWfwd+YTTvVmcQ/grsqjIwS1Fmc8DtE9pNZWCKR8jvBGep0UxOdA42LHCeNzq4/qVAAgfgMjVD0zbf1ddJa6zm+yCL/MKPPUIiJ3V2Mprv54BNjOW5I85B2R4FStOrKBBnHgz1ti8Ke/i62dFYOWyCXV86O6kZSuSooqXDfdjzgdMJuA7YomDpulZNULb3bOHraCdj5bCp75M09ohW0Z6caByCvQ2fV5JPDJ88OQk4p6htVs0wV4raYZ4MjDBWFjNwp68s0Q3nO0lUiWZyomFts98UgwLnzAILHM3iqAya4xxfdy1xqO+jNAYJiZyE2MtQXo8Gehsr32nAqQVO3w1qgiqDFjjV12FL9PZ9lcYgIZFTI72ANYzk9XjgYmPlOx3oXuD0zZbIKYzImV3g9HX3ddkSF/s+ywJr+LFISOQkzj4G8rgAOAgYZ6xs51L8Zbkb1QRVFlVyqK/Tlhjn+64FGotEJdp4HE0AtA04fx8A/Qv+lZoGzwEblyCNm6oJFopnKb5Lheex5/ahEzCRsJ0GLgTaqQlWh2ZyquPMwAXOwzhHW5YETifg6RIIHFDsHpVJPDb2ddzSEfPZvi97OOA8tsXeJvPYaCanOh4Htgw0b/OAnY2VZ1fcqYwlS5DWB4BfqwkWkvuBHUqQzv/i9nHMNFY+9xKub5kngK3UBFtHMzmts2/AAmeMQYEzGOdnYsmSpHemmqDKpkaW9HV+sLHy2dn3cSGypR+bhEROzYTql+BiYJCxsjwBGFmi9L4LTFATLCwTfBmVhZG+DVhiEOGeFJXPHImcRPhtgHk6DVu+JQDOAM4rWZqvUfNTGSXMeb4tWOJo3+dpbDKI9uS03iGE9uUziHCncFsaiA4sWZo/BVZUEywFnwArlCzN1+KOXFtiIDA6sDyNBE5UE2wezeS0zH4B5eULoK9BgXNLCQUO2HNXX2bKWFYH+rZhiTG+D/xCY5QdNJPTMqEY52Pc6YqbjJXf60D7EqZ7PvA9Nb9S8R9guRKm+w1gXWNl1cEL05VCGcfV/JpHMznNE4ofgtuAlY0JnK4lFjigvTgqs+xo79tKV0NldZPvE2/TWBU+mslpnieALUqeh3uBXYyV2yHAlfoyEzlQ9s60G+6ouSXuofxuNJ4kXDcnNaOZnKbpFYDAmWlQ4PQLQODcouanssuJK30bssQulN8X1RYoaKdETkTKfjTvctyMhiVG42LWlJ1Zan4quxyZSHgnkFrjEN9naswKEC1XNc0/cfFPyojFI4WjCMOx4Y3AH9T8Ss0NQOdAPhqseUgus8uQfwE/VPP7LprJ+S59Syxw+hkUOLMJx3PzjWp+KsOCMAhbAXvxfWdZl+tW82OXkMhplTIGdHsV6EH5p1yj8iegYyB5eQa4Ws2v9FztyzIEOvo2ZonLfV/6qsauMNBy1Xf5EHe8sCy8DqxnsJxeADYMKD8n4JbdRPkZTLlipLXGi8BGBsvxNcrlQ+gjYBU1v8XRTM7iHFMygfOIUYHzXGAC52EJnKAY5cs0FDb0bc4a6/k+tiys7McwIZHTLAeUKK33AtsaK58jcRvsNg4sX9eq6QVHaGW6sW97Rxorx219X6sxrKRouWrxylGWjulWYB9j5XMMcEGA+VoALKHmFyTfAO0CzNexwHhjZXkL8PuSpPVA4Do1P4dmcr5lj5Kk83KDAufiQAUOKIRDyIRathf4NmmJfSjPwY491PQkcppi7xKkcTz2PJJeRNhT5HL+p7ItI0f6tmmJfpRjBmtvNT2JnMZ0B9YqeBr74qaJrQ0SRwWcv+nY80Viidm+jEPlKIMi/ViK749mLT+mCYmc/1Hk6b1PcH4bJhkrk5uATgHnb74vVxE2PXxZh0on31YtMcmX6yca04qPNh47iuobx6p/ijuB3QPP42TgMDU9M4Nin8DzeJfRgbWo/rrkM0ci53+MAIYUMF0PAjtIcIbb9tT9mMJCR2t1YH0A2L6A6ToXOMl6w9NyVTE3aV1vUOD0Az4wInDuULMzh4UyX9m3YWuHI3bwfbbGNomcQrJFwdIzA3sOnf4ITDT0FThXzc4cVsp8Fd+W/2isfA/wfbfGNomcQlG0iN0nYG9X/HBsORa7E5igrsccE3zZW2G8b9uW6O77cI1xEjmFoUgeLIdiL37ROOAUY3lWCAe7WCv7U3wbt8Qo35drjCsIljce96E4x7L7AFcYs/8UoKexPL9BuaIai+R5HWhvLM9TgV7G8twbd4KyCBxWoLRkjuWZnCJsyvoa6GZQ4DxiUOAAzNQYbx6LdaAn5YrmnQRX+L79a411+WJ5JudLYOkc3/8WcDT2HGk9CPzKYH17HthEY7wAnsNF9bbG3yjmUes06YALf7F2jmn4CljGamOzOpNzQs4C51VgHYMC5y2jAgdgmsZ2Ybwu/Mr3AZa4yff1r+aYhqUp3oZoiZyU2S3Hd08HNjBm74OAdyl+fLC0WAScp7FdeM7zdcIia/m+4CBj+d6AfOOY7Wa1sVkVOXmFDJiGvXhFfYGrgdUND2rTEUJ1ooHVfZ/Q11i+e5DfLN7uViubRZFzFtAuh/eei73NticAlxkfzP6LvZMlonV6+bphmcuwt4zS048FWdPOj30SOQbokpOwshZDZApaogG4UiYQqhvNcp7vKyxxUk6Co4vFCmZN5PQl+4ixQ4Bhxuw8EZtHxBvzNXCLzCCa4RaKccQ4b3r6PsMSw8g+MPSG2FsiNCdyslyXXIhz821tNmMO9gL0NcdNwGyZQTTDbOydsGyOfr7vsMR5foxYGOgYKJGTA/tk9J5HgEMoXsC2tLkV2E/99f+4QSYQqiNVs5/vQywxw48VWTlL3MdapbLkDHAAMCaD9/wd2M5gB/UaCllQyTxgZ5lBVMG9wE4yw/94HVjPYL4fBrbN4D0DgbFWjGppJmfXDN4xx6DA6Qx8KIHzHRSIU6iuxGNd36d0Npbv7chmyW5XS0a1NJPzMbBiis+/GuhqrFEOxeixxFZ4CLuenUU8/gb8Umb4DqcCw43leSZwcIrP/wRYyYoxrczkDE9Z4EwxKHBOlcBplhkygVCdSYSzfF9jia6ke6x+RUvC0cpMzj+AbVJ69hnA6cYa4aVAf/W/TfI2+QbjE+XlLeyGPmmNicDhxvJ8OnBaSs9+FPi5BSNamclJQ+B8BJxoUOBMlsBpEZ2WEao7ydPf9z3WRM6Jfqwpw5gokZMTaUx1fgisAow01ujuAXqrv22ReplAqO6kQm/fB1lipB9rPizJ2Fg4LCxXPQFskeDzngc2MdjB6Jhr9TyI82S7yP/UA20rBrE6/9MwsNVX/Lvhb/WNrm9TcX3DM9s085zKRl3XxLMb0lVX8Tx8Gqn4e9tG91Nxf53/+8JG76zDxclpA3xT8XcapZUKuyzhn7mg0XPqK97RkN/6RqKg3v+9TYWNFlZ8xNVV3NumkV3rm7BVfRPls6iiDOoqbFTfQpnVN1PODdcvrHhmG2ApYHs1naqw6p7hOWDjBJ/3JLClRE65OQ44P8HnWfWB8yiwtfpWIURBeAxDSy4VJO1L53hgXMgGC325aq8En/U3owLnHQkcIUTB2Nr3TdbYzo9FRRwjJXJy4LcJPecq7E0lD8ZteFtD/akQooCs4fuowcbyvb0fk4o0Rkrk5EBSgTEnAN2MNaJhuA1vKyGEEMVlJd9XDTOW725+bCrSWFlIQt6T8zi1b6o6HOefwRKT0QkqIUT5uALoYyzP/XF+y2rhCWCrUA0U6kxOlwQEzkCDAmeGBI4QoqT0xp7n6Il+rKqFLf2YKZFTImrZTPU1cCiGorR6bsbespwQIiy6+b7MEmP9mPV1TmNmoQl1uepz4Hsx7vsEOAyYZayRKDigECIkLAbJ3R+YRLw4jf8Blg/RKCHO5AyMKXCexG1isyRwOuGc/EngCCFC4pe+b+tkKM+z/Bj2ZIx7v0fty14SORkRxyvvQxjw/NiIA4DrkBdjIUSY7OT7uAOM5XtLP6ZlMXYWnhCXqxpcsFfLZNwSlSWOw63j1iGEEGFTDwwgcM++TTCJaKfNGsKfBEVoGRoWceCeYlDgnIILdSGBI4SwQJ3v804xlu/D/BgXxU7B+RsKTeTsF+HaU7F3XHq4/xFCCGtY7P96Ey3a+H6hGSAkkdOf6mMsDTBY2a8w+CUjhBCVnOL7QmvibkCV127tx1KJnALymyquWYTzYny+sUo+Deil/k0IIejl+0RLnO/HvkUJjaWlIaSNx+8BP2rh7w1O/q43VrlfADZUvyaEEIvxIrCRsTx3wXmFXqqFa94HVg8lw6HM5HRqReA8BxxoUOA8K4EjhBBNsqHvIy1xvR8Ln2vhmh8RkH+hUETOLi387QlgU2CuoYp8ADAf2ET9mBBCNMsmvq+05Etnrh8Tn4g5pkrk5EBzO8KnE3B01WboD1wLLKv+SwghWmVZ32f2N5bvrfwYGWVMlcjJgVOB9k38fgLQw1ilPQm4VH2WEEJE5lLfh1qihx8rG9OeaEfPJXJSZO0mfncOcJSxyjrE51sIIUQ8zvF9qSWOambsWFsipxgsXfH/n/oCs+YPZgYwQv2TEELUzAjfp1riFD92ftrM2FpaQjhCPhjYBreJ6lyDDXIK0FP9khBCJMpUbPoXG4IL8vkoMEoiR+TJvSiKuBBCpMU8YGeZQSJHZM/TwGYygxBCpMozwOYyQzlpIxOUjoOBf0ngCCFEJmzm+9yDZYryoZmcctEDt04shBAie3piL+5VqdFMTnkYJYEjhBC5MpUANuNaQjM55WAi0E9mEEKIQnAZ9jwkS+SIVLgD+I3MIIQQheIvwJ4yg0SOiM896PiiEEIUlXsJKJilRI7Ikn/gnBwKIYQoLo8CP5cZJHJE9bwI/FRmEEKIUvASsKHMUDx0uqpYdAGek8ARQohS8VPfd3eRKYqFZnKKw0HA1TKDEEKUmoOBa2SGYqCZnGIwRAJHCCGC4Grfp4sCoJmc/BkFDJIZhBAiKEYDg2UGiRzLXA4cJjMIIUSQTAL6ygwSORa5GdhHZhBCiKC5BdhXZsgH7cnJh1kSOEIIYYJ9fJ8vckAzOdnzGrCuzCCEEKZ4HVhPZsgWzeRkx0HAmxI4QghhknX9GHCQTJEdmsnJhsNwm4yFEEKIvrhNySJlNJOTPoMlcIQQQlRwOTpeLpETACOAkTKDEEKIRoz0Y4SQyCklZyCvl0IIIZpniB8rREpoT046zAU6yAxCCCGq4CZgP5lBIqcMyMmfEEKIqMhpoERO4XkW2ERmEEIIEYPngE1lhuTQnpxk2B/4QAJHCCFEDWzix5L9ZQqJnKJwBHAjsIpMIYQQokZW8WPKETJF7Wi5qjb6A5fKDEIIIVLgcGCizCCRkweX4zwZCyGEEGkxCechWcRAy1XxuEgCRwghRAYc5sccEQPN5ETnRrQpTAghRLbMAjrLDBI5afJXYFeZQQghRA7cDewmM0jkpME/gG1kBiGEEDnyKPBzmUEiJ0neANaRGYQQQhSAN4H2MkPraONxyxwOvCWBI4QQokCs48emw2WKltFMTvMcC4yTGYQQQhSY44ALZAaJnChcABwjMwghhCgB4/2HuZDIaZVrgANlBiGEECXiWuAgmUEipyVuBX4nMwghhCghtwG/lxkkcpricWBLmUEIIUSJeQLYSmZw6HSV4+8SOEIIIQJgSz+mCTSTA/KBI4QQIjzkSwfbMzm9gFckcIQQQgTIOn6M62XZCFZnco4GLlQbEEIIYYA/YjSSucWZnFMlcIQQQhjiQj/2mcPaTM4UoKfquxBCCINMxdjyVRtjhSuBI4QQwio9/VhoBiszOfcCO6l+CyGEEMwDdraQ0dBncjpK4AghhBCLsZMfGzuGntGQZ3J64zZbLav6LIQQQnyHL3Anr64INYOhzuQcC0yWwBFCCCGaZVk/VgYbwTxEkXMGME51VwghhKiKcX7slMgpOKcCw1RfhRBCiEgMI0BfOiHtyZkE9FE9FUIIIWIzGTgslMyEMpMzSAJHCCGEqJk+fkwNghBmcg4ArlW9FEIIIRLjQOC6smcihJmcFVUXhRBCCI2tjWkXQB4m+sLoDfxE9VIIIYSIzcs4vzkTQ8iMtQCdlewL3Kz6/B06AisASwMf0/x05b7+v5U27ICbHVxY8ft9gTrgpkb3d2jid9WkrQ6Y7f+9nxfqi/w78e9f1OjZnfx13wBzKtLUxv8XoN4/ow5oCyzhf74BvvJ/b1fxvspZ0AX+30v4vzU8a0HFO+r93xr+v97/f13FOxf6a9pW/L1tRRoX+N9TkZ42Po2LKp6F/++iRvZr0yjdS1Q8d0Gj9FFhw47+v4sq/lbX6JrGbWq/imsWNbqnviI9Df+e20y77NDonrqK++Y0uqYh7W0qygpvHyrS0pRdKu1a36g8FzSya7tGdaahrBb6+9pW/L5xWdc3USfaVZRzZXm2a5TuNhVlVefbaEMd/abinW0b2bqh3G72ZbmEf8bsJtpug23aVrxvbkU7qq+we7V0aKb91zfqJ9o20Xab6mcqOQBYybfRT2OkTWNd4FgWOUIIIYQImDYygRBCCCEkcoQQQgghJHKEEEIIISRyhBBCCCEkcoQQQgghJHKEEEIIIZEjhBBCCCGRI4QQQgghkSOEEEIIIZEjhBBCCCGRI4QQQgghkSOEEEIIiRwhhBBCCIkcIYQQQgiJHCGEEEIIiRwhhBBCCIkcIYQQQgiJHCGEEEJI5AghhBBCSOQIIYQQQkjkCCGEEEJI5AghhBBCSOQIIYQQQiJHCCGEEEIiRwghhBBCIkcIIYQQQiJHCCGEEEIiRwghhBBCIkcIIYQQEjlCCCGEEBI5QgghhBASOUIIIYQQEjlCCCGEEBI5QgghhBASOUIIIYSQyBFCCCGEkMgRQgghhJDIEUIIIYSQyBFCCCGEkMgRQgghhJDIEUIIIYREjhBCCCGERI4QQgghhESOEEIIIYREjhBCCCGERI4QQgghJHKEEEIIIcKinUwQLAOBHwErAUsAdf5nEbDQ/3cR8DXwNvAiMFtmq4oOQHtgdWBl4HsV9q33Hw/1wJfAZ8BXwAfAy8DNMp9IiU7AesCqwPd9u6+k3tfR/wL/Bt4CLpHZRMjU1dfXywphcASwI/BL39HF4W3gr8DfgEtlUgAOATYGfgGs723btobn/Qt4AXgUeA6YJBOLmPQHNge2A34GLBnzOV8DrwOP+5+X9cETLPv6/qsemGtd5JwP7AFsluL7nwKuBc7JIe9TgF2AdVN6/gLgXmAGMC2ld/TylbZTCs/+JzAPuMpKY6hgELATsCewVAbve97XlSMKbpc/Az/HzQ5mxSI/8/AN8DHwHvAk8IRBIT4A+L0X3MtnYPfngDuBewreB1wP/A5Ytom/zQfu933w1SUp527AYcCvm/ig+gp41tf9aj+QegNHe0Gc9epNvW+7/8HNZr8BPObzcGWeIucE4LwMDXE6cEaG77sL2C2jd30NLJ3wM3t4gbNzRnm4zVfIsnQScTjSi/qdMx7EG/MYcB/wEHBNgezzOLBlAcvtTdzM2GM+jdcFVi+HeMG9d87puN/3m6cXzD4vAj+t4rp3gTVLUuafACu0cs184LgqhE53YDzwgwLm8w3/8yzwDDAhS5FzDnBSxhnuBMzJ4D3jgGMzzltdgs+6A/hNTpVyuhdYIXGh/wpcv4Bpewa4AjermicnA2eXpDxfA24Bjil5vbzAf80vW7B0LQKmAn0KkJZRuFnXKPV4RMHLfSAwusprbwC6tHLNDNzMUBn4FDcrdy9uBSERmjtd9WgOGfxjBu84KAeBc0tCzznbq/ff5FgJuwMf+s637FyDm0I9uqACB9xS8VjcXqmTckxH+xKV63q+L6kH7sbtWykTk33ajymgwGkYM3r7NF6Vc1o2iHj9hiWpv0nmZ4MS1f0VgL64VYN7cTNVqYmcG0lvH0lz7AZcnPI7+uVQcElMn9/gv0KK0OmtDFwOzCypuJmKO112ILBcSdK8Jm529bWcxM5yJS3rXXB7Fx4tgTAf5YVD7xLZt6tP82U5vX/ZlK/Pgyh7rb4XSJ6bYifcDPbtvp4lLnIAeuI2nGXJkSk++zBg14zzczFuujAuXYBXgc4FrIQH4zYlloVhuJNNPSivf6h1vdh5jmxnJMt+BHNrL8xnFTBtR/t6OajE9u3r60jWG8EXRLz+6xLYso3a7mLshZsxnJWWQXfNIVNpdURZr9G/5zuwuHTHnQBbr8AVcHfc0dP9Ct5QHsJtbF+VMNgYt7fsRmB/iZyq6YQ76TG8IOm5C7cnLJR62R93/DyrWbOvIl7/3xLYMEpbW5jQNWVpu68TY1tLNarx8hwyc0rCz7wId3wuS0bVcO8BuFmgMiwTtAfGFDRt5+P2MW1HmOyP26g3UCKnatr5/iXPU1gDvU13C7BO/tiPGVMKKL4XlMB+bRK+NqSoBu1xJ8VOTNqg/YB/ZJyZ4xN+3lEZp/8cajsRczrVrbcWhQ2AvxcsTXNxG9eWJWza4E5jpDloLwrQbl2Ap3N470yqPz1TZnrijvZ3KlCaFpWkPSdJ2wDr1rlEcHFTrWOgsWS70XRln4kTE3hW1jNRr1PbTNRM3HJE2fgF7jTLrjmnoyduFm2VlN/zOc7Hw3PAKzhHV5/6vy3n6/DawBq48Bob4FztpzloPwCMJHnHbSGKHHCn114nPYegjbkP5+Ati3r5Bi5sw3u48CJtcL5SGurl2ril8DRnizfEOXsdDpyZwvOXDLBOJt3WQo1PeQJuufK0pETO1TjPugdnmInj/ezAjTU84ziyP1VxYQ33TsjYxkmzC27vy2k5vf8Y3NJZGl49nwRe8l//LxPfUd9xOKd6vwA2STiN2/t0DaUYS4hv4vbAVC4r1FX8u6EDXlDx/w0x1dr4QWyllMVhey8G1k7xHZ1wp1XT8FL8DPAwzhliXGdqRwIb4bxZ/yxh4bOE7xN+jNtnmOcAXoZZjaSXhkPZk9MUw3D7rM5OQuSAO8a1O7BaRhlYArdxtxaRk/WR8Zm4Wa847Efx3fpXwyBcmIKsvfWOJ3lfS7f72ZEkHeGNa/Tvk4Hf4vYNJRFCYmncckhb3KxOHnyAO/2VpIfsvn7mYQM/YG5Ccp7E1/LlvEMKtvgjbmYxyfAg84CbEhSyjcVRL98f/TZBGx/qRUmejunqKD5JpzGqyJmPW0V52qelje9LvvF/X9ILsYX+90v6a76q+F29/+8y/iNlXdysXnv/MbFMgvk7ExcE+aLmZWN9fZSf4+qzZ0DENDb8DMs4ne/GTGfDz9z6cLilRltE/bkgwbR/Ul9ff2F9ff3+GeeB+vr6sfX19W8nmJfRCaVrSsT3zsjIXgfV19dPStBm1yWcvjMTLMv/1tfXT86hTp5ZX1//YoL5uCHBtEXtMyfmYL+oPzMi5OeVKp7394g2mpJBHvvW19df7MfMJHizpfdFne4bhwsrkCVxl5uynhWp5TRVN6BDQNOIvyebo83g/BAl4R7gHT+rsqL/+s7Dp8oAP6twtk9PrQwEBufwdflZRva6xvcPa/k68HCNz+tCcsfLTwROTeA583EnLZckn1AKw/xX+Mm4jcS10pnkTl6FdOqvgQU55/+TDPJ4Oe4w0Bq+r32kxuetTQub+eNsSrqYbDcibkz0eCOX4DZ7ZsWfqe00VdcAG2sWeTozgenvf/s6vRbFiWsz1KcniVM4IxMSOlFYIgebXQj8EreX76UannNCQuLy3ASeMxF3yvLoAtTJEb4vPoVvN9jHpSe1OUltIOo4VIZNuFE+KNIQOVnvW7oI2BY4HOfPrJY2d2RShX4T2UeiPY7qvSF38wbLio9xXhnj0on8IwynQWeS32jYeDCq9Uv5LtyJk6MLasPBXizW6ll6JLVtwI/amea592Gcn3mIKzKWoDbPvYckIE5fwHnmPryAdfIc3GxnrSKlG7UHnl2Ycj3Og6RFRpuStN2JwK9qbHv9klS2ZyWkxKtlaaqPfp31ZuMLarx/L8Jlp5Se24sIfhKaYRiwRwlseDUuKGutMwNjvd2y+GIuwmByEvFnZfrTenTn5qj1A/Ba3IzJ9ILXy+64WbN/1/jxWsum/vqU63EeRMlTNeN3Xcna7hHE92u3BU2sILSpsZJ/kWHmt6X12ZxewI4ZpulRavf/sHPAIicNj64d/ddkXJ70dfesktnyJN+A3495//JeKGURB60ox1ZHET/gZZxl0D/hTn7FZQhwUInq5DjcTOiLNTzjZOLPWJVlliKtNNalkOcifKBM8PUikTGn1jXKczPOfGvu67Ncdngfd2y5Fg7ETa2Hynq49fckOZ74+61ux/momVFSe14NrI7bAxaH1Uhmz0mZBpMpuA3dUYl6EOBE3JHrOHyEW048r6T1ciNgdg33nxHzvqhLO6E5D6zmYyKqaCnKkt4I4u2R3CtpkXMWLnZOVqxP89O4Y3HRhrPibGqfUl6P8NkywWfNJP4S2JXA7wKx6V7ApJj3bkv0vUxtUr4+bc4nnk+Zi6q87uAaPvg+wnnnnlzyOrk/8fdTrAbckNIgXzaSPl1V5iW9k4l+8mpNGkUcSKIzOgB3zDErDm3mKyvLI+MPRegAW2KdDNL6DjAV50ztYP/Tv4ZBMipJzVT1Jr436JG+3oREX+AvMe89EfhDhOujzswU8RTLIFz4jSh0rPK6uB6+XyJ7j+xpcgTupGIcOhP9FOCilK/Pg6SFW5uS2yhOWKYt0+iMsp5mbbyGewnJeeashksSes5aKafzfv+OXl7UXON/LqsQPX9KOQ2rJ/ScuEuRU0kmBloR2RN4MMZ9y1H9acU4X4NF3fsQNezBmrjTUi0xPaaQf8nfNyewOnl0DULnJETbhNtZCCJnXsR7fpaGyDmLbN347823ewuGkO1RywtJ7uTDmimmcx6tb8K+xtvywRTTkUQ09anAVjHv60XY7EC8mdRdSW+Ta1G/mMfiDgtEoSUBsz/xZgi/8v1WqBxNvCCxK+KWldMS06EFq6wmPyGcQLsn4vU/TavQD8bFrMmKs3BxrbIMBvkcyXjXbSDNoIBR9iBcwLexSZImiRm2HjHuecKAwGkgbtT7bUsuWuJwWy1fhY2I64H4JGrbqFsGOhLPk+0hVB+DLurSziLsEVXkFFEIPk70U6X908rQxRlmfEn/JZXlMtX4BJ/VCVg1pXTeinPaWC3X+Z+8vjZaYmaMez6jvCdV4nAB8Ta+Viuyy3pCoykaIhdXy1YtzFbE2cg+mu8GaQ2VuD5wDqnyuhA9Huct2ooYqX2O/2iNwk/SKvQzgLsDbbA34rwyFmXwb4mnY9zzcEppqWV/RjfibTY+k+yjoOfNSURfRn02pTIsumfZByJc29zhgDjevB8i+xAbeTKXeN6ft6O6Wdiyn/qrVbikIXKWKKhdosZNWy/NQt8NeD6wxvoG0U6jVCua0gpk+EFG91TDghru3S9mxzoWm/TAeQttbY/VK37wOT2lwaHog8kzEa9v7EW9F/CLiM+YjzvlZ43BuJnlqKQR4De05apqPj5CCWIadXxaJ+3O6KzAKtOYlJ77VkrPbRfjnhVSSktcr9gdYgjLBcA0bDMBtxm5zv90qPj/hp8fpzyjUHSR827E6zdo9O9DYrzzXMLfh9Mc++D8AUW9p3vC9ey/JbBVlDylIXKKKgSj7hn9Qdqd0dX+JwTuxJ2oSoNXU3puHCeDv0gpLR/HvC9OTK9JhgeS5ri5oF+YeRI13lKlq4cewO4R738PGG68HsZxFLhPwmmoV3fQKgsDSVebLL64uhJ9s1DReJlkNxs35o2UnhvVK/B+pBfTKG4eo7rVf5RsHUKK8hL1q3C5iv/vFON9U2RyhgKvJ/yhE+JpqbqUrrXGV1mIHEhvmScrRqT8JfxKSs/dhGgO8LpRMb2XME/GuGcY0X0IXa92nRptU74+a6L2e0s1+iCIwmPEP+IfGldFvH557O2vy3upt6jCadmI13+UlUGvJJ5TqCJwUwZfYBcAX6b07OG4YJbVXPeHlNLwb+IFWdsj4vXvYevIeNEpekyhqP1ePbAv8Txnz1R1+B9Die7vZK8E3x/azIel5beo7lbeylI1diRbJ4FJ8CnxTvbE4cmUntvOfwWN9x10Y3rglnjS/MqMEy27D7B9xHuu1fiRKlGXBRYUPD9RN+YvxPkU2jXifY9R/tnspLkx4vUb03wMsaj1si6wtraoAG09KzaKeP3rWYocSviVfU6G77or5ef/ETcr9Tec75i5wIu4kAdpR22/J2ZljrLc8R7h+mYq6xdj0fdKrBzx+v8C7Wk9TEpjblHV+Q5x2uq2amuxCcHHVRec76QovJ21yBmTwWCeFLcDozJ831DczFHa/BI4ELeh96cZvO8GogdEhOinvG4jmndnEc7XXVzWj3j9p7iZnKj7Ak5T1fkONxLd8eivExqQ2xi0d9Q8F3G261dE3zN6aR6FPrEkleLyHN55cYCN67oaKnQU7tO4UTiRU/S9AlHr2Jcsfoy8Guap2jTLnRGv3z6h95ZhuSpKGtMI0NmugDaJ6krg+byU7fUUf336YvLxszKUeEs7ReUm4p126o+LSVYtnyPnf/oajEY/nDPEavkE+Br4YcT3PKRq02J/958I17fFxQqrtZ6VYaOufPkszjlUxKGqkifzEjkAgyjuUd9HmmlIWTE+kEr5EvFPpW0c8frH1AcUUuQU+Qj5DhGvf8bnJ+pMzhOqNi3yVMTr10zgnaFtPE5DNBXtZGS/GPc8lqfIATiAYq7xX5Lz+2cTP2pvkRiBixobhx9FvP5ZhIjGvhGvfxW3HyDKfpyXCMfje1pEDbi4Wg5ivegsTOiaooqc64h+SOA1Gu2pzavQzy9YZbmWYnglHQqcUHKBM7WG+1eKeP0riLJ2vnkwEVgx4j3vEn3T4+OqAq0S1RP6agZEC+S/XFWUWdgZuFNVUbmhKJVkEPEi06b1RXFQgSr5KMq5dDUBOLnGZywdYwASxaOIywL7En3q+z7cTM7yMfoU0TJRnQJuYETkRGk7aQiiIuwJugDnhT8OJxSpkuxTkEp1fgEr+t+oiL1REu5P4BlLRbj2E5zfHyGRUw1nxrjndlzQ16Ui3ve2qkCrXBbx+vUTqGehuUKoTyHPebfdO4FjYt7b5KGhvJXwlQUw6GUFrLwdiD6rkTe7J/CMKIPJ5xonCkvRNh7/Fdgy4j2v821IkiUi3vuhqkBVfBqxb2gctHdhgDZpU/DnpcUZOMeucceR92gmNlreBngi5/f/uWAFfRjwAHBwCRtnH9wMVFYi5xONEZlRZvf5txM9HAMsvnF4uYj3zlGVqYqoy3or11gvQxM5abSzbzLO76n+g2IY0Q+eVHIJzYQMydvxz2o5v/+bAlXuQWTraTkNfgn8CziXeNGDl4lw7WsaI0r7dZkVzwKbxLjvERbfX7aSqkAqvOX7jLj9Q5xAq0UnaWeAUYXQOinnb19gU2Ab3JaVJFYsHgTOau6PeYucA3N+/x64TU55M8qLnBBYFef08XtE2wdxMNEizWpzZ3aU7Yv5TGAA0WdgGmjsnX31CPd+repSNV9kLL7LIHLyXoLrCnyEc4PQ1tu4Hd8uQX/t+4N2/m9fV0wWtG1UJsvhZt/WBDbDOeFMehvG87TiZDhPkTMKF/QuT/YBegNX5JiGYQEJnErOAFah+k1k3yOaL5KPNUZkRllmcvr6+rZZDc+YC0xu9OUZJf8LVV1SEx31NdbLMtTjvJ0BggvqXAb+jYsPN6uIhd69QAP7MTm++zAvBkLlj8DpVV4bdVp1aURWFN19/gjgadwhgloEzhNAx0a/uzlQQVgEom5QX6LG95WhbJIW1CGHiTiBKiIo5FXoxxfIUFs0+nLLij9Q/j041XAK0KmK674k2rH5tRChiKKoDMR5Q33Vd+JDahQ34Kbom4saHmVZReK7eqKuJNQ6YIe2UdmqyPnEa4iJaVSyJDiL6Mc506Y38Ceyjat1IrCCkY7seFoPfDoDF9Zi7Sqf+5MM0j4FFwG5PYuf/FpU0XnUVXwsLPI/bVrpcOr8/9c10QE3/L6u0X31TXwF11X8fVHFfW2auafh743TuAB37PlvwP4Z2PUg3IzJ5jgPxHW+w25Y629IXxv/t6X8T5oCYiAusGxTvE/TflpEbXw/4vWfGRjAowixtgbrzP/h9ttVPcOatcg5zH91FZHeGYqcs4CfG6qYO+JOWw1o5bqPI4icNVJO8+3AXs38rU0Lv487O1rLrGpdE/fXtTCj0qaJfuBHuBm3R3EnH9KiC8WL63Q4LUezj+quYF+iL3NZ5McRr59eo8gJbSZnCWP15Urg0Cw71jicQP4nuppjL751/pUmvSjPxq4kOaKKa76M8LwVU0zrwBYETuhszXeXk5P8Yt6oYPntR+vT3l9GfOaKiGrYMMK1X8lcuY/fefGs75MOLbqRLiebJYZaGILbK5MmXYge8C8ElgYuauWaKH6LViK9mGM/Nd55LlXj/S3tFXijIHl8Eee24PIqro16LHwFjb+t0iPi9U35xVpg3IbVfHyUeUnrA9zp482AcUVXgl1xS1VloG/Kz9/bcKNsbQPy/AjPakd6S1Y/wDaNyyHJjcTTcc678uRu3IxStbHPororWE8aplXWjnj9Owm8s64Edokya7owkDw35iXcgZXVaMHJX5SBIgsGl8jAe+I2BZ+XwrPzOE31JPAQ8BTOr0BbnIOmTb34zPI0yBreric28/fPIj5vXY0VqfBxDR1vNR3raJxvqhUyztfnvg1G7TijRrvfXFWoVVaNeP37RuyS9MxLWZa0/gncBdxGMzGoiixyJlK801StMRB4juQ3D+6bcT7G+rw0Rx9/TZZH+lsKwPZWxGf9GJE0nzTRySTtJ2e2/5LP0tv49cABNXxZRmELVaNWibp14d0Y9ayMsxpJb44uqnPKV4FngJeBv+NcQqRC2iKnA25jXxm/Mo5MWOQcQ7SNdrWwALc8OK2Kawfg1j7PyShtLZ3ceb4gg8lHhgeflxMYHKr5ehyPm/FIcxn7a9yx8Ctp/nh4NUzA7Q34YZXXrwIcSzFCxhSVqB++TX0AhXiEOsrMS31C1zTmGdzMSoMbinZ86/ai4Zl1TfQNlb+vrxBt9b5PfRt4BRdMMzPSFjndS1zZ9vLCZHxCz9sgw7SfWqXAaWAELqzCyRmlry9Nb/i8AriU6o9GrgF0ppnoszXwrOHB55EaO94o/Upf3GzcLimU319IdobyuQgiB7Rk1RJDiRYPbAFNH1oIMXZV0kQVgreQ/YpDYVRjVIb5AajMnAj0TOhZ62aU5jtxUcCjcgpu2jALWvJOGzUN26aQvgm4EAEWeaiJ30Wd8o7Sr1yAi1xfCy8Dk3CzJ3W+fiW9BPtUxOt/JS3TLLtHvP7BhD7S62X6Vvl7aBlKcyZncAD2WcN/bU5N4FlZhSGoZVr+upREQ2O2a2UmYYcIz9ojpTT2x0U6/wWwDrAM3zrda9NIAFR6Mq7z7aq+Qhw0eO79hsU9E1dOB7epeFbl3yqd+i1q9J7K98Li08VrEn1z5ze4pZ1aibKvYA5ueefymO+aTTZemqOKnE2AbgnZMzS2T0jkRJ2lKIPIWSbn94fmMDE1kTMNt/wRSoMcSCvh3Ksgi/04zwMX1nD/GNxSV9pHqDfHzZBNbWYwWRChbm5Neqfhzi9xvT3If2hsHeGeR5r5fdQZ36gzP5O8uI7jvmH5jOx5BXBURHt2kMj5DkOAJROaXYjqJ6cMJ42iuMWoZq9cVGG3ZGgVLo1CH0G59+I0Ra0eijsBy2WQzlcSeMb/ZZDOZf1MQ1NMAe6J+Lz9EY25BudnIonBJAv6AffFuG+PDMXonRGv74Jz0yC+Zc+I1z9H83HvonqiLsPpqo0jXLsghTwH50U56Qx1BQYF2DDbU1tcq3UySufnCTzjk4zS2tJM358iPmtb0vN+XFbOI/oS6cM5p3mnmPcdBxydQfpOjHHPIaqK/6MnsGvEe1oK7BvVr1a7gtunG27ptlo+VZXKXuT0yqgifYDbXPuPDG31B9yx8jj8MKM0rpDAM74pQN0bQ/RZqX3UnBcjapyXO2jeA3B9gmXbGqfFvO9UWveonQSPRbz+d5TTjUYaRBV8H+NOYjXHPyM+b7mC22flGOOgyFDkDCC9TaCNGQ2chPNemmX8krhfi1k5ZFo9gWf8sCB1c3aMDvRINWnALa9GrQtJ+oSqZfPimcCMGPethgsAnDZzY9zTQ1WSvjHGh9ZmdKPGQVur4DaKuo/17RTSENzG46REzgG+c8qCp4GR/v+vIzk/NtWwMa1HLG6K+Rmmr9Zlm60LUvcGx2hwfTSWQIyZg3m0Hjw1S7oDj8a475ek72jsTOD1iPdsDxxuvE7Gyf/trfx9GtFiWhU9QHRUkVPNTI55X0JJiZxjyW4qsPFR04G4eBdZDiBRfXBkJXKWojb/HFnG1qpGwEyPIdBGGx9MLqBlP0RNcX3CaUiiozyDeJ6nDyf9GZ2ZMe6xPMs4IcbH0xyqO5kWJRTMSmSzdysuUU8K/juFNCwMrfIlIXJOIrrfg7hcRdNHpCdmbLeoDWV+hmnrWcO93TJM56dVXDMb+CLicwcYHkz64bx0R+EZWp/FyWMK+2YvdOJwHnBEimk7heib/DePKY7KzvExy6Jaf19R492tX2Bb/Sji9dV8BCzCOLWKnIPJ9jRVtxYaxPQM07E+7qh8tXySYdq+D8yKcd+cGI2sFqqJKnwT0SPS1hH9CHooxHHAWU27yaujvBC4OOa9aS+fx9k3dHAMEVp2To9xzwM4VxLVENXlRZFFTpRQIB9lPOaZFTm9cVOAWTCplb/3IBk/MdUyJMKX5myyDfrYKaI4uArYL8P0PR+hE4tzMmVnko9nVXQmEz0q+1+pbokyaj+RpD+So4keBRzcUdxrUrT3UTQdGbs1TqX84W6q5Rb/0RWVKRGujSpyflpQWx0UMW1PpZQO+clpJHCyOk31CNV5Q70kY/tF+Sp7OeO0dfWDQ0uOGY/EOTjL2mFZ1KP/l8Z4x/60fPw0JEb79hiVakMp5D3lfTbRHb8BHEi0GdekP7yaE19nG6iTE4Hfx7xvcoTrryDaktXGBbVX1C0fD+XwwWFO5GQ57VqteBlD867p02AF3Ka6angph/L9Ce4Ewtu4k2gXeBtN8na6mOjB8pLgyYjXHwHcH+M9Z/mfkDkSt/k+KnNTnOlI+mtweg2CdQjpOYo8DfhbjPs2jFmfy8JJxJuB/RfxTmE9F/H6UQW02W9S7kOrRUfIPXOALTJK4xyiTV9OydiGR1TZoJ/PsZzXxLmYPwa3MbcP8PMc0xMnDtiEmO8aSu1hOYrKYOLtWXkb6FiyvI6N+IVfyckppmsc8U6k7EC8Y/JlqJPnxLx3ZMz7Hop4fZeC2exkYKMI138MXItITeScQLb7N6J+bV5C9huyqjltda6vnNaJGxvrauKfohtPeEsER9QwKJyTQT+RBocB98a4b3OSdXZYyXXA8Jj3bk10nztFZkANdfJq4gdBPj3i9e3Jzq9bNUT11P1ghGuD83uThcjJ8ojutJiKtQfZurze3H9ptsat0jiRgxxWcjjxfbqcTLw9FEVkGPFntm4l+t61tgXK+y7E83K+j7dbGpxO/Gjj7YEXcSevysz5NYiUf1L7vsA7YowRRWAE0WfV74lwbdRZRvPOAK8hO7f/71Kbz5cJGdvyeFqPzXIHtplfo8gB51376Zj39iF6uIiicRXx/ce8RLwYX1FFTtoOxeKKlZN9/UmDQ4k/S/lTYCrldRj4J1yQ1LiMTCANUfvWdXCzcHkT1efaMxHFpDYeR7h2KO60QlbU6uDvdJy/hSxpraFfSfT145CYRTJHu4cRf4NcR+A9yhe1fH/cJte4X7zv4DbhxqE+5evjfP3GOUm5FO4Id1qcQnxXEUvi9lddVKI62cMLu9/WKHDGJpCWMV4ARKFLjeKsVq4heiiHqDPZUUWO6SPkWW7efIVk1kwvAz7LMN0/p/UlkWuwS1K+a+b4zinuYPoj3B6AKSWx21nedr+s4RknEX8Wa0EBbXIkrQdwbIrNaD0mUlyuI55DxkqOwsUS27fgdXIEbvZpgxqecSFwYoJpilO/zyZbT+8NjIsxafA56e8lMrtcNQUX5TcrkvJ3Mz2hr4Qo9KHlkysXePFljSuJF8G5pQ7y+Bqf0RO3hHNSQW12MO5UXq3+fk4inofeuCInqynyvWMKsL2I54m32r6yVqGzI87b95gC1skjcUe2h9T4nGtJ3g3JMKKHgVnW9yVZHqYZgIv3GKdukXJbNClyBlLb3pioXJ9w4z6TbD0hQ+uzXv2pLnZTKLyB27OQNBfglghq4Se400bP+nIpirj5My7W0UY1PmsQ7mRfLdSlfH0txD2ufBrp+foaTTIz3wNwM9FjC1An++M2vF5M7Q71riS95eI4hwtW8PdlsSdqVMzx7Y2YwogCt93CiJxBGafpyhSemfU69260HlZhDHYYmeKzzyGZyMKb4DwrP0Z+G0B74Ga7ZgJ7JvC8sw3Us9OI7z8nzan/ixIalL6Pm7H8J+4EU9Ycjzu2fykuXEqtXJvSB08DxxJvL+YqXsCldQKvI26ZNO54mtXsvzlngGPJNmjj1VQffTYK43Drx1nSlZZnwIbnkKY8mEz6J90u9p3HFwk8ayv/vPdwYQ+ymN2ZgItFMxXokNAzB5BcWIuoU9hZd5SHAU/EuO8HxNvXUy3jcW4PPk/gWavh9qF949OcZpT17r4uvunHgJ0Seu5UstnwP66Ge8/wbXFIgum5AbdfaK+Y999N/BlL89TV19e31Elm+RX4Cm5pbG6K7/g3sHyGeXoM2KaVa/6c0Fd7EflLxnnr7Ots+4Sf+4Evp8d9Pa21jnYHtvRfxlunYIchwHkJPm8Sbq9ZlOv7ZlzX9sPtWVgxxr1jSHfG+iBcjKVlEn7u58B9vl6+6t8Rhx64ZdFfeJGfRtDlqUCvDOvDxdQ+I/s6zq/UPV6oRGEgLnbXrjWm4X0vaOfEvP8fVYxBlZyJmx01IXLeAtbKMC2DcWvZaXIezmNzllxA68cUHyB6gLaicy35HdN+gvTDjnyKO5b9nP/5F84P0ELcDGlb3PHQH+L8oGwFrAu0SzFNL+JOvUxL+LmTiRYANA+Rgx/ULo55b3/SXRLojPPTs3XKNvjc1/9XcOE7/g38Fze7tgRu/8mquL1om5LNTP051L53Lg5zSG5D8QIvJh/FBVv+0Lf1pYDl/IfVxsDPEh43D6c2dypRRc7ZBBbYuDmRE7VTq5W7yDaiedZxmw6kdcdTf01A9ReFLMszqYG57NyTYv0pi8ippdzfJPkZwKaYRXQ3/mXlTdwR8TzdZjwI/Kqk9htK7eFoHgK2K4EgTY2m9uR0z2FwmJrhu/I4vl1Nh78bbnmr7NxQAIEDbnnlBNwMS+ick7JAjuogrD7ncn8wxn3reHGeNvvjlsY+D7xOzvCiMW+/YOcB/ymh/a4gmXh7UdvugtAqYlMGGJxxGq4nnRNVzXE50ddXa2WPKu26DeXejDyDYkX4HYVbLrol0IHkQdxx81Ny6CeSvD5pdsAtJUZlN9zJtrQZgzs1dUOAdfJfuP0o3QuSnrm4ZcyPSmTDcUTbA9cSRQvJkrvIuQrnETQr3iW9WDIt0QX4MuN3nlSlAOhFOSNmn1igjq0x++K8mt4XSLv9DOf7ZoeMvpSjdpTtCmCjs2LedzDZ+CNp6IcOw20aDoHZ/qNibMHSNQN3RPzFEtgwCSenWX7QlErkdKP2SLBRmZhj3rMO4Lki1Ue+HYpbty9DnKsncRuMRxY8nVfhjsKeWJLOrqVOcAWy9dIcdfmpCFPeE4l/2mhghumcjAuNMI7yLhXc4cXh/gVP50Y4L/hF5CtcSI+kHVRGde4XtJ+cfTJ+99OkH4ejJQaR/XTx72k55EMlc3Ab5kb7BlA0Fvny2xJ3kqosjPSd3RnEjxqdB+N8h3VMDu+OGv+tKHsg+hA9OjXA2mQf1+x43OmnC3G+cMrAQ35g/i3licnXA+fwr0jLV7fi3Auk8eEddcVifsgi55cZvnch2c+kNEUX3PHKLNky4vWDfQO4qUD15krcMmOZ/SmcjjtGewLFXcb6ELd/o458p7BfiHj98wWy4W9xfo6i0jmn9B6Di0h+bgy7Z8UduCP3vypIPx6Vs3DLV5NyTsdbQL+UJxhej3Dt52QfAilTkZPlhqOhODfhRWAY2U7RLRfzvv38YDcV+DgHO833ncIfcG7ZbwykDYzCLWN18rZ9pwBpuh23L2RVsg+r0hQXRRCCN5DvMnRzwiGq0Fk+5zSfhPO70hu3GfqLnNPzJG5Wuc4LxxCCDPf17X5Wxu99G+czaR3cQZi0BWm1y6Azie90sLBU+sk5Gremuh0uMmsaPO0r1OkFs0MXP6hsi5syTqti30lyXj9P8MInbSeCD+HcyJ+BHfr5r9Tf4dzpp82/gb97Oxc51tRdvo18r4m/vYfzCt2rwOm/2Qva77dwzTe4U2u3egFcJAYAv/F18wcZvO//vOC+JwchkDX7evF2gP+4SIP7caGLsp79OhrnkHaDZv7+Di50xKEhFmxLHo874mZ3bq6oBG0jKL19+XbTUx3phmvImg58Ows2p1GeG/LbFnfKZFEGsx4n4jzq/hpYMwEh+hTOU+Y4RMPgsiUuiOc2CTzvbW/f54FnyObYsgiLA3B7yzbDeff+aY3P+wjnKfkF/3ORcfsO9f3ptsQLFYLvR58F5lGclQtztCRyRDnZzw/G7XExaJbFLZEt5YXXItw+pK/8z5e4+ChvYSsyei308DZeAVgaN/vXzovbRRVCd5EXw/O9jd/DBW0UIg2Ow22aXhW3r6fhQ6uBev/husD3AZ/5Ovk8AS5TJMhBuKXDdXD7I+v9T7uK9r7I2/Vj4CXKuVdJIkcIIYQQoiy0kQmEEEIIESL/D6lXbT5XNzYdAAAAAElFTkSuQmCC';
+
+// ---- rAF-coalesced redraw: a burst of keystrokes/IME candidate updates
+// arriving faster than the screen can paint costs at most one actual
+// redraw per animation frame, never one per event. Kept from the fixes
+// tried while this tool lived inside otokohon -- a real, verified
+// optimization on its own, even though it alone didn't turn out to be
+// the whole story there. Declared up here, ahead of everything below that
+// calls it (the roster <select> setup, setNameMode(), ...) -- `let`
+// bindings aren't usable until their own line has actually run, so this
+// has to execute before any of those synchronous calls, not just be
+// hoisted like the function declarations are. ----
+let redrawScheduled = false;
+function scheduleRedraw(){
+  if(redrawScheduled) return;
+  redrawScheduled = true;
+  requestAnimationFrame(()=>{
+    redrawScheduled = false;
+    redrawPreview();
+  });
+}
+
+// ---- read-only staff roster, for the name picker only. Never writes to
+// config/staff or anything else under timecheck/. Same project/DB as
+// X8 TIME CHECK and otokohon (男本/イケメンリスト) on purpose -- same
+// roster, just a different read-only view of it. ----
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDfHz5djZU4ZsJKY9DsfQOJt3D7pdSOHqU",
+  authDomain: "x8clean.firebaseapp.com",
+  databaseURL: "https://x8clean-default-rtdb.firebaseio.com",
+  projectId: "x8clean",
+  storageBucket: "x8clean.firebasestorage.app",
+  messagingSenderId: "716422687785",
+  appId: "1:716422687785:web:3d18478a3c301580ea4038"
+};
+const DB_PREFIX = 'timecheck';
+
+let staffList = [];       // [{id,name}], read-only mirror of config/staff
+let nameMode = 'roster';  // 'roster' | 'manual'
+let staffListLoaded = false;
+
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+  ));
+}
+
+function staffLoadFailed(){
+  if(staffListLoaded) return; // real data already arrived after a slow/late error callback
+  const sel = document.getElementById('kanjiSelect');
+  sel.innerHTML = '<option value="">名簿を読み込めませんでした</option>';
+  sel.disabled = true;
+  document.getElementById('nameModeHint').textContent = '名簿を読み込めませんでした。「直接入力」をご利用ください。';
+  setNameMode('manual');
+  showToast('スタッフ名簿を読み込めませんでした');
+}
+
+function renderStaffSelect(){
+  staffListLoaded = true;
+  const sel = document.getElementById('kanjiSelect');
+  const prevValue = sel.value;
+  sel.disabled = false;
+  document.getElementById('nameModeHint').textContent = '';
+  if(!staffList.length){
+    sel.innerHTML = '<option value="">名簿にスタッフが登録されていません</option>';
+    sel.disabled = true;
+    scheduleRedraw(); // the select's effective value just changed (e.g. a previously-selected person vanished) -- reflect that
+    return;
+  }
+  const options = ['<option value="">スタッフを選択</option>'].concat(
+    staffList.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`)
+  );
+  sel.innerHTML = options.join('');
+  if(prevValue && staffList.some((s) => s.id === prevValue)) sel.value = prevValue;
+  scheduleRedraw();
+}
+
+// Nothing arrived quickly (offline, blocked, SDK failed to load, etc.) --
+// don't leave the picker stuck on "読み込み中…", fall back to manual entry
+// so the tool stays usable either way. Registered synchronously, completely
+// outside the async work below, so it fires on schedule no matter what the
+// Firebase load ends up doing.
+setTimeout(() => { if(!staffListLoaded) staffLoadFailed(); }, 5000);
+
+// Loaded with dynamic import() -- called as an ordinary function, not a
+// static `import` declaration -- specifically so a failed or stalled SDK
+// load can never take down the rest of this module. A static
+// `import {...} from "..."` at the top of the file is hoisted and run
+// before any other code in the module, and if THAT fails or hangs, the
+// whole module never runs at all: not just this roster picker, but the
+// totally-unrelated photo upload, mode-toggle buttons and download button
+// as well. That was the actual cause of a real-device report of the whole
+// page being unresponsive ("タッチしても何も起きない"), even though it
+// never showed up in sandbox testing here (this environment's network
+// always loads gstatic.com quickly). A dynamic import() is just a function
+// call that returns a promise, so wrapping it in its own async IIFE +
+// try/catch keeps any failure local to the roster feature alone.
+(async () => {
+  try{
+    const [{ initializeApp }, { getDatabase, ref, onValue }] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js"),
+    ]);
+    const fbApp = initializeApp(FIREBASE_CONFIG);
+    const rtdb = getDatabase(fbApp);
+    onValue(
+      ref(rtdb, DB_PREFIX + '/config/staff'),
+      (snap) => {
+        const data = snap.val();
+        staffList = (data && Array.isArray(data.list)) ? data.list : [];
+        renderStaffSelect();
+      },
+      () => { staffLoadFailed(); }
+    );
+  } catch(e){
+    staffLoadFailed();
+  }
+})();
+
+function getCurrentKanji(){
+  if(nameMode === 'roster'){
+    const sel = document.getElementById('kanjiSelect');
+    const opt = sel.selectedOptions && sel.selectedOptions[0];
+    return (opt && opt.value) ? opt.textContent.trim() : '';
+  }
+  return document.getElementById('kanjiInput').value.trim();
+}
+
+function setNameMode(mode){
+  nameMode = mode;
+  document.getElementById('modeRosterBtn').classList.toggle('is-active', mode === 'roster');
+  document.getElementById('modeManualBtn').classList.toggle('is-active', mode === 'manual');
+  document.getElementById('kanjiSelect').style.display = mode === 'roster' ? '' : 'none';
+  document.getElementById('kanjiInput').style.display = mode === 'manual' ? '' : 'none';
+  scheduleRedraw();
+}
+
+const STAFFCARD_DIV1_FRAC = 0.60;        // photo / name-band divider
+const STAFFCARD_DIV2_FRAC = 0.77;        // name-band / logo-band divider
+const STAFFCARD_LOGO_WIDTH_FRAC = 0.17;  // logo block width as a fraction of card width
+                                          // (2026-10-12 その3: 参考画像を高解像度でピクセル計測した実測値
+                                          // 0.1699...に合わせて0.19→0.17に修正。詳細はcardDrawLogoBlock()
+                                          // 手前のコメント参照)
+const STAFFCARD_LOGO_VCENTER_FRAC = 0.464; // ロゴ欄の中でのロゴの縦中心位置(帯の上からの割合)。
+                                          // 0.5(帯の真ん中)ではなく、参考画像の実測値に合わせてある
+const STAFFCARD_BAND_COLOR = '#0a0908';  // 名前欄・ロゴ欄の背景色(純粋な#000ではなく、ページ自体の--bgと同じ柔らかい黒)
+                                          // -- この手前の定数群と同じ場所にまとめて置くこと。drawStaffCard()の
+                                          // すぐ上に置いていたら、ページ読み込み時にsetNameMode('roster')が
+                                          // 即座にscheduleRedraw()経由でdrawStaffCard()を呼ぶタイミングでは
+                                          // まだこの行(constの初期化)を通過していないため、TDZ
+                                          // (Temporal Dead Zone) の ReferenceError で毎回描画が失敗し、
+                                          // 「写真を読み込めませんでした」という無関係なエラーに化けて
+                                          // しまっていた。以前のredrawScheduled/scheduleRedrawの並び順
+                                          // バグと全く同じ種類のミス。
+
+let photoImg = null;     // the freshly-uploaded photo, at native resolution -- used ONLY for the
+                          // final export, so the download keeps full quality. Shape:
+                          // {draw, width, height} -- `draw` is whatever drawImage() accepts
+                          // (an ImageBitmap in the common case, or an <img> as a fallback; see
+                          // loadImageFile() below), so it is never read directly as an <img>.
+let previewImg = null;   // a downscaled copy of the same photo, used for the live on-screen
+                          // preview redraw that fires on every keystroke. A real phone photo can be
+                          // 12-48MP; redrawing that full bitmap on every character typed is what made
+                          // the name field feel frozen when this tool lived inside otokohon. Pre-
+                          // scaling once removes the problem instead of just outrunning it.
+let photoVCropFrac = 0;  // 2026-10-12: 「写真を入れたら頭を一番上まで持っていきたい」という要望。
+                          // 背景が無地とは限らない実際のスタッフ写真(椅子やグラデーションの
+                          // ある照明など)で試しに自動検出(背景色との差分/局所分散など)を
+                          // 何通りか検証したが、どれも参考画像レベルの写真であっさり誤判定
+                          // した(この手の「賢い自動判定」はこのツールで繰り返し実機トラブル
+                          // の元になってきた)。確実さを優先し、写真の上から何%を切り取るかを
+                          // スライダーで直接指定できるようにした -- 誤判定の余地が無く、結果も
+                          // プレビューでその場で確認できる。0なら従来通り写真全体を使う。
+
+const logoImg = new Image();
+logoImg.onload = () => { redrawPreview(); };
+logoImg.src = X8GROUP_LOGO_DATAURL;
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+document.getElementById('dropzone').addEventListener('click', ()=>{
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', onFileSelected);
+document.getElementById('downloadBtn').addEventListener('click', downloadNow);
+document.getElementById('modeRosterBtn').addEventListener('click', () => setNameMode('roster'));
+document.getElementById('modeManualBtn').addEventListener('click', () => setNameMode('manual'));
+document.getElementById('kanjiSelect').addEventListener('change', () => scheduleRedraw());
+setNameMode('roster');
+
+// スライダーのドラッグ中は'input'が高頻度で発火しうるので、
+// requestAnimationFrameで1フレームに1回の再描画にまとめる
+// (previewImgは軽量な縮小版なので、これ自体はFULL解像度の
+// 名前欄デバウンス問題とは無関係だが、念のため)。
+let photoVOffsetRaf = null;
+document.getElementById('photoVOffset').addEventListener('input', (e) => {
+  photoVCropFrac = Number(e.target.value) / 100;
+  if(photoVOffsetRaf) return;
+  photoVOffsetRaf = requestAnimationFrame(() => { photoVOffsetRaf = null; redrawPreview(); });
+});
+
+// ---- 写真の読み込み: まずcreateImageBitmapで試す。これはOSのネイティブ
+// 画像デコーダーをそのまま使うため、<img>タグにblob URLを読み込ませる
+// 方式より対応フォーマットが広い。iPhoneのカメラが標準設定で撮る
+// HEIC/HEIFは、Safari自体は問題なく表示できる形式なのに、<input type=
+// file>で選んだファイルをblob URL経由で<img>タグに直接読み込ませようと
+// すると稀に失敗することがある、昔から知られているWebKitの癖で、実機で
+// 出た「写真を読み込めませんでした」の原因はこれだった可能性が高い。
+// createImageBitmapが使えない、またはそれでも失敗する環境のためには、
+// 元のやり方(<img>タグへの読み込み)にそのままフォールバックするので、
+// 前より状況が悪くなることはない。どちらの経路でも、呼び出し側が同じ
+// ように扱えるよう {draw, width, height} という同じ形にして返す
+// (drawはcanvasのdrawImage()にそのまま渡せるものなら何でもよく、
+// ImageBitmapでも<img>でも構わない)。 ----
+function loadImageFile(file){
+  if(typeof createImageBitmap === 'function'){
+    return createImageBitmap(file)
+      .then((bitmap) => ({ draw: bitmap, width: bitmap.width, height: bitmap.height }))
+      .catch(() => loadImageFileViaImgTag(file));
+  }
+  return loadImageFileViaImgTag(file);
+}
+
+function loadImageFileViaImgTag(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ draw: img, width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image decode failed')); };
+    img.src = url;
+  });
+}
+
+function onFileSelected(e){
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  if(!file.type || file.type.indexOf('image/')!==0){ showToast('画像ファイルを選択してください'); return; }
+  loadImageFile(file).then((photo) => {
+    photoImg = photo;
+
+    // 新しい写真を選ぶたびに、縦位置調整は毎回ゼロからやり直す
+    // (前の写真用の値を引き継ぐと、構図が違う新しい写真では
+    // ズレた位置で切り取られてしまう)。
+    photoVCropFrac = 0;
+    const vOffsetEl = document.getElementById('photoVOffset');
+    vOffsetEl.value = 0;
+    document.getElementById('photoPosField').style.display = 'block';
+
+    // Build the downscaled preview copy ONCE here, not on every keystroke.
+    const pMaxDim = 900;
+    const pScale = Math.min(1, pMaxDim / Math.max(photo.width, photo.height));
+    const pc = document.createElement('canvas');
+    pc.width = Math.max(1, Math.round(photo.width * pScale));
+    pc.height = Math.max(1, Math.round(photo.height * pScale));
+    pc.getContext('2d').drawImage(photo.draw, 0, 0, pc.width, pc.height);
+    previewImg = pc;
+
+    // previewImgから軽量なサムネイルを作る(元ファイルがHEICで何MBも
+    // あっても、ここは縮小済みのpreviewImgから作るので表示用として軽い)。
+    const dz = document.getElementById('dropzone');
+    dz.classList.add('has-photo');
+    dz.innerHTML = `<img class="dz-thumb" src="${previewImg.toDataURL('image/jpeg', 0.85)}" alt="">`
+      + `<div class="dz-title" id="dzTitle">クリックして写真を変更</div>`;
+    redrawPreview();
+  }).catch(() => {
+    showToast('写真を読み込めませんでした');
+  });
+}
+
+// ---- manual-entry fields (romaji always; kanji only in 直接入力 mode)
+// redraw on a short pause after typing stops, or on blur/compositionend --
+// never synchronously on every keystroke. This is the actual fix for the
+// freeze: no redraw work runs *during* a burst of typing (unlike the old
+// scheduleRedraw()-per-frame version above), so whatever in the redraw
+// path was freezing the keyboard on sustained input never gets a chance to
+// run while the field is still being actively typed into. ----
+let manualDebounceTimer = null;
+const MANUAL_REDRAW_DEBOUNCE_MS = 450;
+function onManualInput(e){
+  if(e.isComposing) return;
+  clearTimeout(manualDebounceTimer);
+  manualDebounceTimer = setTimeout(scheduleRedraw, MANUAL_REDRAW_DEBOUNCE_MS);
+}
+function onManualInputSettle(){
+  clearTimeout(manualDebounceTimer);
+  scheduleRedraw();
+}
+document.getElementById('kanjiInput').addEventListener('input', onManualInput);
+document.getElementById('kanjiInput').addEventListener('compositionend', onManualInputSettle);
+document.getElementById('kanjiInput').addEventListener('blur', onManualInputSettle);
+document.getElementById('romajiInput').addEventListener('input', onManualInput);
+document.getElementById('romajiInput').addEventListener('compositionend', onManualInputSettle);
+document.getElementById('romajiInput').addEventListener('blur', onManualInputSettle);
+
+function redrawPreview(){
+  const canvas = document.getElementById('cardCanvas');
+  const ctx = canvas.getContext('2d');
+  const kanji = getCurrentKanji();
+  const romaji = document.getElementById('romajiInput').value.trim();
+
+  // Uses the downscaled previewImg, never the full-resolution photoImg --
+  // this redraw fires on every keystroke/frame.
+  let W, H;
+  if(previewImg){
+    const nW = previewImg.width, nH = previewImg.height;
+    const maxDim = 760;
+    const scale = Math.min(1, maxDim / Math.max(nW, nH));
+    W = Math.round(nW * scale);
+    // 2026-10-12: 頭を上に詰めるスライダー分だけ、カード自体の縦サイズも
+    // 縮める(切り取った後の写真を元の高さまで引き伸ばして埋めるのでは
+    // ない)。スライダーでどこを切っても、写真側は常に等倍スケールのまま
+    // になり、縦に間延びするような変形が起きない。drawStaffCard側の
+    // クロップ処理とこの縮め方が噛み合って初めて無変形になる(詳細は
+    // drawStaffCard手前のコメント参照)。
+    H = Math.round(nH * scale * (1 - photoVCropFrac));
+  } else {
+    W = 540; H = 764; // placeholder aspect ratio
+  }
+  canvas.width = W; canvas.height = H;
+  drawStaffCard(ctx, W, H, previewImg, kanji, romaji, logoImg.complete ? logoImg : null, photoVCropFrac);
+
+  // Canvas text doesn't auto-redraw when a web font finishes loading
+  // (unlike ordinary CSS text), so the very first draw right after the
+  // page opens could briefly use a fallback font if Noto Serif JP /
+  // Playfair Display are still being fetched. Re-draw once more once
+  // they're confirmed ready; harmless no-op if they already were.
+  if(document.fonts && document.fonts.status !== 'loaded'){
+    document.fonts.ready.then(()=>{ redrawPreview(); });
+  }
+}
+redrawPreview();
+
+function canvasToBlob(canvas, type, quality){
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+function blobToDataUrl(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function downloadNow(){
+  if(!photoImg){ showToast('先に写真を選択してください'); return; }
+  if(!logoImg.complete){
+    logoImg.addEventListener('load', downloadNow, { once:true });
+    return;
+  }
+  const kanji = getCurrentKanji();
+  const romaji = document.getElementById('romajiInput').value.trim();
+
+  // 2026-10-12: プレビューと同じく、頭を上に詰めるスライダー分だけHを
+  // 縮めてから渡す(Wはそのまま) -- プレビュー側と全く同じ計算にしておく
+  // ことで、プレビューで見た通りの構図がダウンロードした画像にもそのまま
+  // 出る(詳細はredrawPreview/drawStaffCard手前のコメント参照)。
+  const W = photoImg.width, H = Math.round(photoImg.height * (1 - photoVCropFrac));
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const octx = off.getContext('2d');
+  drawStaffCard(octx, W, H, photoImg.draw, kanji, romaji, logoImg, photoVCropFrac);
+
+  // 2026-10-12: 「長押しが出来ない」「ロゴが半分消える」の再発報告で見つ
+  // けた問題点。以前のここのコードは、full解像度のcanvasに対してcanvas.
+  // toBlob()とcanvas.toDataURL()の両方を実行していて(しかも結果を使わ
+  // ないtoBlob()の方は完全に無駄だった)、さらにtoDataURL()は同期処理で
+  // メインスレッドを止める。iPhoneの写真は数千px四方あるので、それを
+  // 2回分(うち1回は無意味)エンコードするのは実機では重く/不安定にな
+  // りうる。書き出し形式もPNGからJPEG(quality 0.93)に変え、ファイル
+  // サイズ自体を縮小した(写真が主体のカードなのでPNGの可逆圧縮はほぼ
+  // 恩恵が無く、容量だけ肥大化していた)。
+  //
+  // この直後、一度はsrcをURL.createObjectURL()のblob URLにしたが、今度
+  // は「画像が全く出ない」という報告になった。このページはサーバー越し
+  // ではなくfile://として直接開く前提で、file://文書から作ったblob URL
+  // をSafari/WebKitが正しく解決できない(読み込めない)既知の癖がある
+  // ため、それが原因だった可能性が高い。<a download>のblob URL遷移が
+  // 実機で効かなかった時と根っこは同じ「file://とblob系APIの相性」。
+  // ここは確実に動くとわかっている方(data URL)に戻し、生成を1回の
+  // canvas.toBlob()(非同期)+ FileReaderでdata URL化、という形にして、
+  // メインスレッドを止めやすい同期のtoDataURL()もそのまま避けている。
+  const blob = await canvasToBlob(off, 'image/jpeg', 0.93);
+  if(!blob){ showToast('書き出しに失敗しました'); return; }
+  const dataUrl = await blobToDataUrl(blob);
+
+  // <a download>によるblob保存、Web Share APIによる共有シート -- どちら
+  // も実機では「ダウンロードまでできたのに画像が出て固まる、右上の
+  // ボタンにすら反応しない」という症状を解決できなかった(download属性
+  // が無視されてblob URLへの「ページ遷移」として扱われる/Web Share自体
+  // が機種やiOSのバージョン・設定次第で挙動が変わる、等がいずれも疑わ
+  // しいが、画面収録でログを取る手段も無いこの端末では確証が取れな
+  // かった)。ページ遷移も共有シートも一切使わず、生成した画像をこの
+  // ページの中にそのまま表示して、Safari最古参の「長押し→写真に追加」
+  // で保存してもらう方式に切り替えた。ページから一切動かないので、
+  // <a download>のblob URL遷移も、Web Share APIの機種差も関係なくなる。
+  showSaveOverlay(dataUrl);
+}
+
+function showSaveOverlay(dataUrl){
+  document.getElementById('saveOverlayImg').src = dataUrl;
+  document.getElementById('saveOverlay').style.display = 'flex';
+}
+document.getElementById('saveOverlayClose').addEventListener('click', () => {
+  document.getElementById('saveOverlay').style.display = 'none';
+});
+// buildFilename()は使わなくなった -- 長押し保存はiOS側が自動でファイル名
+// を付けるので、こちらで名前を組み立てる意味が無くなったため削除した。
+
+// otokohon-31: fitted font size via binary search (max 10 measureText
+// iterations) instead of a ~50-step linear shrink scan -- kept here for
+// the same reason as the rAF coalescing above: a real speedup, even
+// though alone it wasn't the fix.
+function cardFitFontSize(ctx, text, family, weight, maxWidth, startSize, minSize){
+  ctx.font = weight + ' ' + Math.round(startSize) + "px '" + family + "'";
+  if(ctx.measureText(text).width <= maxWidth) return startSize;
+  let lo = minSize, hi = startSize;
+  for(let i=0;i<10;i++){
+    const mid = (lo + hi) / 2;
+    ctx.font = weight + ' ' + Math.round(mid) + "px '" + family + "'";
+    if(ctx.measureText(text).width <= maxWidth) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
+function cardDrawLetterSpaced(ctx, text, cx, y, spacing){
+  const chars = Array.from(text);
+  const widths = chars.map(ch => ctx.measureText(ch).width);
+  const total = widths.reduce((a,b) => a+b, 0) + spacing * Math.max(0, chars.length - 1);
+  let x = cx - total/2;
+  const prevAlign = ctx.textAlign;
+  ctx.textAlign = 'left';
+  for(let i=0;i<chars.length;i++){
+    ctx.fillText(chars[i], x, y);
+    x += widths[i] + spacing;
+  }
+  ctx.textAlign = prevAlign;
+}
+
+function cardDrawPlaceholderPhoto(ctx, W, H){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0, '#2c2a26');
+  g.addColorStop(0.55, '#171512');
+  g.addColorStop(1, '#0a0908');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = 'rgba(243,239,230,0.38)';
+  ctx.textAlign = 'center';
+  ctx.font = '500 ' + Math.round(H*0.026) + "px 'Noto Sans JP', sans-serif";
+  ctx.fillText('写真をアップロードしてください', W/2, H*0.30);
+}
+
+function cardDrawNameBlock(ctx, W, top, bandH, kanji, romajiRaw){
+  const maxW = W * 0.84;
+  const romaji = (romajiRaw || '').toUpperCase();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#f7f4ec';
+
+  let kanjiSize = 0, romajiSize = 0;
+  if(kanji){ kanjiSize = cardFitFontSize(ctx, kanji, 'Noto Serif JP', 900, maxW, bandH*0.50, 10); }
+  if(romaji){ romajiSize = cardFitFontSize(ctx, romaji, 'Playfair Display', 700, maxW, bandH*0.20, 8); }
+
+  const gap = bandH * 0.09;
+  const kanjiBlockH = kanjiSize * 0.86;
+  const romajiBlockH = romajiSize * 0.72;
+  const totalH = (kanji ? kanjiBlockH : 0) + (kanji && romaji ? gap : 0) + (romaji ? romajiBlockH : 0);
+
+  let cursorY = top + (bandH - totalH)/2;
+
+  if(kanji){
+    ctx.font = '900 ' + Math.round(kanjiSize) + "px 'Noto Serif JP'";
+    ctx.fillText(kanji, W/2, cursorY + kanjiSize*0.80);
+    cursorY += kanjiBlockH + (romaji ? gap : 0);
+  }
+  if(romaji){
+    ctx.font = '700 ' + Math.round(romajiSize) + "px 'Playfair Display'";
+    cardDrawLetterSpaced(ctx, romaji, W/2, cursorY + romajiSize*0.70, romajiSize*0.14);
+  }
+}
+
+function cardDrawLogoBlock(ctx, W, top, bandH, logoImage){
+  if(!logoImage || !logoImage.naturalWidth) return;
+  const targetW = W * STAFFCARD_LOGO_WIDTH_FRAC;
+  const aspect = logoImage.naturalHeight / logoImage.naturalWidth;
+  const targetH = targetW * aspect;
+  const x = (W - targetW) / 2;
+  // 単純な「帯の上下中央」(bandHの50%)ではなく、参考画像を実測した
+  // 位置(帯の上から約46.4%のところがロゴの縦中心)に合わせている。
+  // 詳細はこの下のコメント参照。
+  const y = top + bandH * STAFFCARD_LOGO_VCENTER_FRAC - targetH / 2;
+
+  // 2026-10-12 その3: 「ロゴが消える」対策として、ロゴの後ろに保険の
+  // 暗がりを敷くという方向そのものを撤回した。shadowBlur→radial
+  // gradient→角丸の単色チップと3段階試したが、ユーザーから参考画像を
+  // 名前欄の下のロゴも含めて再度ピクセル単位で指定され、「そのまま/
+  // 白色/形も見てわかるはず」と明確に指摘された: 参考画像のロゴ欄には
+  // 背景の板や縁取りは一切無く、白いロゴ画像がそのまま写真の上に乗って
+  // いるだけだった。チップ(やその前のgradient)は「見えにくくなるかも
+  // しれない写真」に備えた保険のつもりだったが、結果的に参考画像のまま
+  // ではない余計な見た目をロゴに付け足してしまっていた。保険を優先して
+  // 参考画像との一致を崩すべきではなかった。ロゴは一切加工せず、写真の
+  // 上にそのまま描画するだけに戻す。
+  //
+  // あわせて、ロゴ画像データ(X8GROUP_LOGO_DATAURL)自体も差し替えた。
+  // 旧アセットは235x160px・余白込みの縦横比0.68と低解像度で、参考画像
+  // (3307x4677pxの高解像度版)をピクセル計測して出た実際のロゴの縦横比
+  // (約1.07、アイコン+文字の実寸)と一致しておらず、参考画像を「写真」
+  // として読み込ませてカードを生成し直す往復テストで、このツールが
+  // 描いたロゴと参考画像に焼き込まれたロゴとが二重像(ゴースト)になって
+  // ずれているのが見えて発覚した。新しいアセットは、その高解像度参考
+  // 画像の名前欄の下の領域から直接切り出して作った: 白に近い中性色
+  // (R,G,B差が小さい)かつ明るいピクセルだけを不透明として残す簡易
+  // クロマキーで抽出し、写真側のノイズ(袖のボタンの反射がロゴの先端
+  // にちょうど重なっていた箇所)は連結成分のサイズでふるい落として
+  // 除去した。STAFFCARD_LOGO_WIDTH_FRACも、この高解像度参考画像での
+  // 実測値(カード幅の約17.0%)に合わせて0.19から0.17に直した。
+  //
+  // ↑このノイズ除去を最初に矩形で機械的に切り取った際、袖のボタンと
+  // 重なっていたアイコン右下の先端まで一緒に削れてしまい、そこだけ
+  // 他の3つの先端と違っていびつに欠けた状態でユーザーに見つかった
+  // (「これもロゴかけとる」)。実際に測ると、このアイコンは左右・
+  // 上下ともにきれいな線対称(各ペアの面積差は2%未満、ユーザーが
+  // 気づけるレベルの誤差ではない精度で一致)だったので、矩形除去での
+  // 場当たり的な補修はやめ、汚れのない左半分を軸で鏡像反転して右半分
+  // 全体を置き換える形で先端を再構成した。どの写真でボタンがどこに
+  // 重なっていても対応できる、対症療法ではなく構造的な直し方。
+  ctx.drawImage(logoImage, x, y, targetW, targetH);
+}
+
+function drawStaffCard(ctx, W, H, photoImage, kanji, romaji, logoImage, vCropFrac){
+  ctx.clearRect(0,0,W,H);
+  if(photoImage){
+    // 2026-10-12: 「写真を入れたら頭を一番上まで持っていきたい」スライダー用。
+    // vCropFracは「元の写真の上から何%(0〜0.5)を切り落として描画するか」。
+    // 渡されるphotoImageはImageBitmap/<img>/<canvas>のいずれもあり得るので、
+    // ネイティブのピクセルサイズはnaturalWidth/Height(<img>用)を優先し、
+    // それが無ければwidth/height(ImageBitmapとcanvasはこちら)にフォール
+    // バックして取る --- どれであっても確実に正しい実寸が取れる。
+    const srcW = photoImage.naturalWidth || photoImage.width;
+    const srcH = photoImage.naturalHeight || photoImage.height;
+    const cropTopPx = Math.round(srcH * (vCropFrac || 0));
+    const drawSrcH = srcH - cropTopPx;
+    ctx.drawImage(photoImage, 0, cropTopPx, srcW, drawSrcH, 0, 0, W, H);
+  } else {
+    cardDrawPlaceholderPhoto(ctx, W, H);
+  }
+
+  const div1Y = H * STAFFCARD_DIV1_FRAC;
+  const div2Y = H * STAFFCARD_DIV2_FRAC;
+
+  // 2026-10-12: 参考画像をピクセル単位で測り直して確認した通り、黒く
+  // 塗りつぶされているのは名前欄(div1〜div2)だけ。ロゴ欄(div2より下)は
+  // 塗りつぶしではなく、写真がそのまま続けて見えている上に白ロゴを重ねて
+  // いるだけで、そこが黒っぽいのは被写体がたまたま黒い服を着ているから
+  // (壁の色が角にわずかに写り込んでいるのも確認済み)。直前の修正で
+  // ロゴ欄まで塗りつぶしてしまっていたのは参考画像の誤読で、「それ全部
+  // 真っ黒な画像なんて送ってない」という指摘の通りだったので戻した。
+  // ロゴ欄側の「ロゴが消える」対策はcardDrawLogoBlock側でロゴ自体に
+  // グローを敷く形に変更し、背景の塗りつぶしには頼らないようにした。
+  ctx.fillStyle = STAFFCARD_BAND_COLOR;
+  ctx.fillRect(0, div1Y, W, div2Y - div1Y);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+  ctx.lineWidth = Math.max(1, H * 0.0014);
+  ctx.beginPath();
+  ctx.moveTo(0, div1Y); ctx.lineTo(W, div1Y);
+  ctx.moveTo(0, div2Y); ctx.lineTo(W, div2Y);
+  ctx.stroke();
+
+  cardDrawNameBlock(ctx, W, div1Y, div2Y - div1Y, kanji, romaji);
+  cardDrawLogoBlock(ctx, W, div2Y, H - div2Y, logoImage);
+}
+</script>
+</body>
+</html>
