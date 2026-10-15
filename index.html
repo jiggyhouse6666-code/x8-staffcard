@@ -469,6 +469,16 @@ const STAFFCARD_LOGO_WIDTH_FRAC = 0.17;  // logo block width as a fraction of ca
                                           // (2026-10-12 その3: 参考画像を高解像度でピクセル計測した実測値
                                           // 0.1699...に合わせて0.19→0.17に修正。詳細はcardDrawLogoBlock()
                                           // 手前のコメント参照)
+const STAFFCARD_REF_ASPECT = 3307 / 4677; // 2026-10-15: 上のSTAFFCARD_LOGO_WIDTH_FRAC(0.17)等を測った
+                                          // 「参考画像」自体の横縦比。カードの縦横比は常にアップロード
+                                          // された写真自身の縦横比そのもの(redrawPreviewでW,Hをphoto
+                                          // から直接出しているため、固定テンプレートではない)。なので
+                                          // 縦長(参考画像に近い)写真ならLOGO_WIDTH_FRACをWに掛けるだけで
+                                          // 参考画像通りの見た目になるが、横長(横画像)の写真だとWだけが
+                                          // 異常に大きくなり、ロゴが帯からあふれて巨大化・名前欄に重なる
+                                          // 「ロゴが変になる」不具合が出た(ユーザー報告)。cardDraw
+                                          // LogoBlock側で、この定数を使ってロゴサイズをW基準ではなく
+                                          // bandH(=Hに比例、横長写真でも暴れない)基準に換算し直すのに使う。
 const STAFFCARD_LOGO_VCENTER_FRAC = 0.464; // ロゴ欄の中でのロゴの縦中心位置(帯の上からの割合)。
                                           // 0.5(帯の真ん中)ではなく、参考画像の実測値に合わせてある
 const STAFFCARD_BAND_COLOR = '#0a0908';  // 名前欄・ロゴ欄の背景色(純粋な#000ではなく、ページ自体の--bgと同じ柔らかい黒)
@@ -821,8 +831,22 @@ function cardDrawNameBlock(ctx, W, top, bandH, kanji, romajiRaw){
 
 function cardDrawLogoBlock(ctx, W, top, bandH, logoImage){
   if(!logoImage || !logoImage.naturalWidth) return;
-  const targetW = W * STAFFCARD_LOGO_WIDTH_FRAC;
   const aspect = logoImage.naturalHeight / logoImage.naturalWidth;
+  // 2026-10-15: 横画像(横長の写真)をアップロードするとロゴが巨大化して
+  // 名前欄に重なる/帯からあふれる不具合の修正。カードの縦横比は常に
+  // アップロードされた写真自身の縦横比(redrawPreview参照)なので、横長
+  // 写真だとWが際限なく大きくなる。以前はtargetW = W * LOGO_WIDTH_FRACと
+  // Wに直接比例させていたため、Wが大きくなるほどロゴも一緒に巨大化して
+  // いた。bandH基準の式(STAFFCARD_REF_ASPECTで参考画像と同じ縦横比の
+  // 時にW基準の式と完全に一致するよう換算済み)も計算し、両方の
+  // 小さい方を採る: 参考画像通りの縦横比では元の見た目と1px単位で
+  // 変わらず、横長写真ではbandH基準(小さい方)が選ばれて肥大化を防ぎ、
+  // 逆に極端な縦長写真でもW基準(小さい方)が選ばれて帯の横からあふれる
+  // ことがない。
+  const targetW = Math.min(
+    W * STAFFCARD_LOGO_WIDTH_FRAC,
+    bandH * STAFFCARD_REF_ASPECT * STAFFCARD_LOGO_WIDTH_FRAC / (1 - STAFFCARD_DIV2_FRAC)
+  );
   const targetH = targetW * aspect;
   const x = (W - targetW) / 2;
   // 単純な「帯の上下中央」(bandHの50%)ではなく、参考画像を実測した
