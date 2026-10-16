@@ -149,6 +149,12 @@ header{text-align:center; margin-bottom:26px;}
     <div class="field-label">写真の縦位置(頭を上に)</div>
     <input type="range" id="photoVOffset" min="0" max="50" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
     <div class="field-hint">このすぐ下のプレビューを見ながら動かすと、頭の上の余白を詰められます</div>
+    <div class="field-label" style="margin-top:14px;">顔をアップに(ズーム)</div>
+    <input type="range" id="photoZoom" min="0" max="100" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
+    <div class="field-hint">顔の部分だけを大きく見せたい時に。上の縦位置スライダーで合わせた位置を中心にズームします</div>
+    <div class="field-label" style="margin-top:14px;">写真の左右位置</div>
+    <input type="range" id="photoHShift" min="-50" max="50" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
+    <div class="field-hint">ズームしている時だけ効きます。顔が中央から左右にずれている時はこれで合わせてください</div>
   </div>
 
   <div class="preview-wrap"><canvas id="cardCanvas"></canvas></div>
@@ -548,6 +554,26 @@ let photoVCropFrac = 0;  // 2026-10-12: 「写真を入れたら頭を一番上�
                           // の元になってきた)。確実さを優先し、写真の上から何%を切り取るかを
                           // スライダーで直接指定できるようにした -- 誤判定の余地が無く、結果も
                           // プレビューでその場で確認できる。0なら従来通り写真全体を使う。
+// 2026-10-17: 「従業員の顔写真入れた時に顔の部分だけをアップ出来るように
+// して欲しい」との要望で追加。縦位置スライダーは上からのトリミングだけで
+// 拡大はしない(引き伸ばしで歪ませない設計)ため、顔が写真の中で小さい
+// ケースには対応できていなかった。これはphotoVCropFracと直交する別軸:
+// 0なら従来通り等倍、1に近づくほどSTAFFCARD_ZOOM_MAX_SCALE倍まで中央
+// 寄せでズームする。縦は「縦位置スライダーで選んだ範囲の中心」を軸に
+// ズームするので、まず縦位置で顔を大まかに合わせてから、ズームで寄る、
+// という操作順で直感的に使える。
+const STAFFCARD_ZOOM_MAX_SCALE = 3;
+let photoZoomFrac = 0;
+
+// 2026-10-17: 「写真位置もずらせるようにして」との追加要望で追加。上の
+// ズームは常に横中央を軸にしていたため、顔が左右中央からずれている
+// 写真だと、寄るほど肝心の顔がフレーム外に出てしまっていた。ズームで
+// 生まれる「余白(元の幅 - ズームして見える幅)」の範囲内で、見る位置を
+// 左右にずらすための軸。-1で左いっぱい、+1で右いっぱい、0(初期値)が
+// 従来通りの中央。ズームしていない(photoZoomFrac=0)時は余白そのものが
+// 無いので、この値を動かしても見た目は変わらない(スライダーのヒントに
+// もその旨を明記した)。
+let photoHShiftFrac = 0;
 
 const logoImg = new Image();
 logoImg.onload = () => { redrawPreview(); };
@@ -580,6 +606,18 @@ document.getElementById('photoVOffset').addEventListener('input', (e) => {
   photoVCropFrac = Number(e.target.value) / 100;
   if(photoVOffsetRaf) return;
   photoVOffsetRaf = requestAnimationFrame(() => { photoVOffsetRaf = null; redrawPreview(); });
+});
+let photoZoomRaf = null;
+document.getElementById('photoZoom').addEventListener('input', (e) => {
+  photoZoomFrac = Number(e.target.value) / 100;
+  if(photoZoomRaf) return;
+  photoZoomRaf = requestAnimationFrame(() => { photoZoomRaf = null; redrawPreview(); });
+});
+let photoHShiftRaf = null;
+document.getElementById('photoHShift').addEventListener('input', (e) => {
+  photoHShiftFrac = Number(e.target.value) / 50;
+  if(photoHShiftRaf) return;
+  photoHShiftRaf = requestAnimationFrame(() => { photoHShiftRaf = null; redrawPreview(); });
 });
 
 // ---- 写真の読み込み: まずcreateImageBitmapで試す。これはOSのネイティブ
@@ -631,6 +669,10 @@ function onFileSelected(e){
     photoVCropFrac = 0;
     const vOffsetEl = document.getElementById('photoVOffset');
     vOffsetEl.value = 0;
+    photoZoomFrac = 0;
+    document.getElementById('photoZoom').value = 0;
+    photoHShiftFrac = 0;
+    document.getElementById('photoHShift').value = 0;
     document.getElementById('photoPosField').style.display = 'block';
 
     // Build the downscaled preview copy ONCE here, not on every keystroke.
@@ -704,7 +746,7 @@ function redrawPreview(){
     W = 540; H = 764; // placeholder aspect ratio
   }
   canvas.width = W; canvas.height = H;
-  drawStaffCard(ctx, W, H, previewImg, kanji, romaji, logoImg.complete ? logoImg : null, photoVCropFrac);
+  drawStaffCard(ctx, W, H, previewImg, kanji, romaji, logoImg.complete ? logoImg : null, photoVCropFrac, photoZoomFrac, photoHShiftFrac);
 
   // Canvas text doesn't auto-redraw when a web font finishes loading
   // (unlike ordinary CSS text), so the very first draw right after the
@@ -747,7 +789,7 @@ async function downloadNow(){
   const off = document.createElement('canvas');
   off.width = W; off.height = H;
   const octx = off.getContext('2d');
-  drawStaffCard(octx, W, H, photoImg.draw, kanji, romaji, logoImg, photoVCropFrac);
+  drawStaffCard(octx, W, H, photoImg.draw, kanji, romaji, logoImg, photoVCropFrac, photoZoomFrac, photoHShiftFrac);
 
   // 2026-10-12: 「長押しが出来ない」「ロゴが半分消える」の再発報告で見つ
   // けた問題点。以前のここのコードは、full解像度のcanvasに対してcanvas.
@@ -931,7 +973,7 @@ function cardDrawLogoBlock(ctx, W, top, bandH, logoImage){
   ctx.drawImage(logoImage, x, y, targetW, targetH);
 }
 
-function drawStaffCard(ctx, W, H, photoImage, kanji, romaji, logoImage, vCropFrac){
+function drawStaffCard(ctx, W, H, photoImage, kanji, romaji, logoImage, vCropFrac, zoomFrac, hShiftFrac){
   ctx.clearRect(0,0,W,H);
   if(photoImage){
     // 2026-10-12: 「写真を入れたら頭を一番上まで持っていきたい」スライダー用。
@@ -943,8 +985,27 @@ function drawStaffCard(ctx, W, H, photoImage, kanji, romaji, logoImage, vCropFra
     const srcW = photoImage.naturalWidth || photoImage.width;
     const srcH = photoImage.naturalHeight || photoImage.height;
     const cropTopPx = Math.round(srcH * (vCropFrac || 0));
-    const drawSrcH = srcH - cropTopPx;
-    ctx.drawImage(photoImage, 0, cropTopPx, srcW, drawSrcH, 0, 0, W, H);
+    const baseW = srcW, baseH = srcH - cropTopPx;
+    // 2026-10-17: ズームスライダー用。vCropFracが選んだ範囲(baseW×baseH)
+    // の中心を軸に、STAFFCARD_ZOOM_MAX_SCALE倍まで寄る。縦位置スライダーは
+    // 上からのトリミングのみで拡大はしない(引き伸ばし防止)ため、顔が
+    // 写真内で小さい場合は対応できなかった -- その隙間を埋める、vCropFrac
+    // とは直交する別軸。幅も高さも同じ比率で縮めてから等倍で貼るだけなので、
+    // 縦横比は保たれ、歪みは発生しない。
+    const zoomScale = 1 + (zoomFrac || 0) * (STAFFCARD_ZOOM_MAX_SCALE - 1);
+    const zoomW = baseW / zoomScale, zoomH = baseH / zoomScale;
+    // 2026-10-17: 左右位置スライダー用。ズームで生まれた横の余白
+    // (baseW - zoomW)の範囲内で中心をずらす。hShiftFracは-1(左いっぱい)
+    // 〜+1(右いっぱい)、0が従来通りの中央。zoomScale=1(ズーム無し)だと
+    // 余白が0になるのでhShiftFracを動かしても何も変わらない -- これは
+    // バグではなく、ズームしていない状態ではずらす先が無いという自然な
+    // 帰結(UIのヒント文でも明記済み)。Math.maxで余白が万一負になる
+    // ケース(丸め誤差)を0にクランプし、ズレで描画範囲が元画像の外に
+    // はみ出さないようにしている。
+    const hSlack = Math.max(0, baseW - zoomW);
+    const zoomX = hSlack / 2 + (hShiftFrac || 0) * (hSlack / 2);
+    const zoomY = cropTopPx + (baseH - zoomH) / 2;
+    ctx.drawImage(photoImage, zoomX, zoomY, zoomW, zoomH, 0, 0, W, H);
   } else {
     cardDrawPlaceholderPhoto(ctx, W, H);
   }
