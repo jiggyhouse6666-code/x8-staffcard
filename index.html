@@ -367,6 +367,45 @@ let staffList = [];       // [{id,name}], read-only mirror of config/staff
 let nameMode = 'roster';  // 'roster' | 'manual'
 let staffListLoaded = false;
 
+// config/staff の name は源氏名(「りお」等)だけで本名/役職入りのフルネーム
+// は持っていない。「GR8(HOST事業)」ランキング表の写真から読み取った
+// フルネームを源氏名キーでここに持たせ、プルダウン表示・カード描画の両方
+// にそのまま使う(名簿データ自体は書き換えない — otokohon/TIME CHECK側は
+// 今まで通りname(源氏名)だけを見るので無関係)。表に載っていない/写真上で
+// 源氏名と同じだった人はここに載せず、従来通り源氏名のまま出す。
+// 「ざくろ」の苗字部分(眞月尽)と「じゅうぞう」の濁点は本人に確認済み。
+// 「だいまおう」は写真上「人魔王」に見えたが「大魔王」に補正済み(本人確認済み)。
+const FULL_NAME_BY_STAGE_NAME = {
+  'りお': '酸　りおSV',
+  'れい': '神崎　零幹部補佐',
+  'るい': '結川　瑠衣社長',
+  'るか': '作葵　るかPD',
+  'こうや': '白馬　皐矢統括',
+  'めい': '成宮　鳴Lagacy Player',
+  'TOM': 'TOM副主任',
+  'かえで': '楓',
+  'ときな': '暁　ときな幹部補佐',
+  'かなた': '美澄　奏多AAD',
+  'はるの': '結城　存乃幹部',
+  'ふく': '神宮寺　福',
+  'イヴ': 'イヴ幹部補佐',
+  'ひそか': '衛',
+  'みかげ': '海己',
+  'まお': '舞桜',
+  'はいる': '猫宮　はいる',
+  'ざくろ': '眞月尽　柘榴',
+  'とうや': '冬夜',
+  'ゆきね': '月宮　ゆきね',
+  'れお': '帝神月　零織',
+  'かなで': '奏',
+  'こーき': 'KOKI',
+  'にいな': '成瀬　にいな',
+  'じゅうぞう': '鈴屋　仟造',
+  'だいや': '帝夜',
+  'しゆき': '志雪',
+  'だいまおう': '大魔王',
+};
+
 function escapeHtml(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
     { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
@@ -396,7 +435,7 @@ function renderStaffSelect(){
     return;
   }
   const options = ['<option value="">スタッフを選択</option>'].concat(
-    staffList.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`)
+    staffList.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(FULL_NAME_BY_STAGE_NAME[s.name] || s.name)}</option>`)
   );
   sel.innerHTML = options.join('');
   if(prevValue && staffList.some((s) => s.id === prevValue)) sel.value = prevValue;
