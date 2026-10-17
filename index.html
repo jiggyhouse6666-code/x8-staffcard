@@ -149,12 +149,12 @@ header{text-align:center; margin-bottom:26px;}
     <div class="field-label">写真の縦位置(頭を上に)</div>
     <input type="range" id="photoVOffset" min="0" max="50" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
     <div class="field-hint">このすぐ下のプレビューを見ながら動かすと、頭の上の余白を詰められます</div>
-    <div class="field-label" style="margin-top:14px;">顔をアップに(ズーム)</div>
-    <input type="range" id="photoZoom" min="0" max="100" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
-    <div class="field-hint">顔の部分だけを大きく見せたい時に。上の縦位置スライダーで合わせた位置を中心にズームします</div>
     <div class="field-label" style="margin-top:14px;">写真の左右位置</div>
     <input type="range" id="photoHShift" min="-50" max="50" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
-    <div class="field-hint">ズームしている時だけ効きます。顔が中央から左右にずれている時はこれで合わせてください</div>
+    <div class="field-hint">顔が中央から左右にずれている時は、これで先に位置を合わせてください</div>
+    <div class="field-label" style="margin-top:14px;">顔をアップに(ズーム)</div>
+    <input type="range" id="photoZoom" min="0" max="100" value="0" step="1" style="width:100%; accent-color:#c89a4a; margin:2px 0 4px;">
+    <div class="field-hint">上の縦位置・左右位置で合わせた場所を中心に、そこからさらに大きくズームします</div>
   </div>
 
   <div class="preview-wrap"><canvas id="cardCanvas"></canvas></div>
@@ -565,14 +565,19 @@ let photoVCropFrac = 0;  // 2026-10-12: 「写真を入れたら頭を一番上�
 const STAFFCARD_ZOOM_MAX_SCALE = 3;
 let photoZoomFrac = 0;
 
-// 2026-10-17: 「写真位置もずらせるようにして」との追加要望で追加。上の
-// ズームは常に横中央を軸にしていたため、顔が左右中央からずれている
-// 写真だと、寄るほど肝心の顔がフレーム外に出てしまっていた。ズームで
-// 生まれる「余白(元の幅 - ズームして見える幅)」の範囲内で、見る位置を
-// 左右にずらすための軸。-1で左いっぱい、+1で右いっぱい、0(初期値)が
-// 従来通りの中央。ズームしていない(photoZoomFrac=0)時は余白そのものが
-// 無いので、この値を動かしても見た目は変わらない(スライダーのヒントに
-// もその旨を明記した)。
+// 2026-10-17: 「写真位置もずらせるようにして」との追加要望で追加。最初は
+// 「ズームで生まれた余白の中だけで中心をずらす」実装にしたが、「位置を
+// ずらせるようにして、そっからズームとか出来るようにしたい」と指摘された
+// 通り、それだと先にズームしないと位置ずらしが何も起きず、使いたい順番
+// (先に位置を合わせて、それからズームで寄る)と逆だった。縦位置スライダー
+// (photoVCropFrac)が常に効く独立した軸であるのと同じ扱いに直し、横方向
+// にも「常に効くトリミング」を持たせた: 左右どちらかの端を最大
+// STAFFCARD_HSHIFT_MAX_TRIM_FRAC分だけ切り落として見る位置をずらす
+// (ズーム前でも見た目が変わる)。-1で右端を最大まで切って左に寄せ、+1で
+// 左端を最大まで切って右に寄せ、0(初期値)が従来通りトリミング無し。
+// ズーム(STAFFCARD_ZOOM_MAX_SCALE)は、この「縦位置+左右位置で切り取った
+// 後の範囲」を中心にさらに寄る、という2段構えになる。
+const STAFFCARD_HSHIFT_MAX_TRIM_FRAC = 0.4;
 let photoHShiftFrac = 0;
 
 const logoImg = new Image();
@@ -734,13 +739,16 @@ function redrawPreview(){
     const nW = previewImg.width, nH = previewImg.height;
     const maxDim = 760;
     const scale = Math.min(1, maxDim / Math.max(nW, nH));
-    W = Math.round(nW * scale);
     // 2026-10-12: 頭を上に詰めるスライダー分だけ、カード自体の縦サイズも
     // 縮める(切り取った後の写真を元の高さまで引き伸ばして埋めるのでは
     // ない)。スライダーでどこを切っても、写真側は常に等倍スケールのまま
     // になり、縦に間延びするような変形が起きない。drawStaffCard側の
     // クロップ処理とこの縮め方が噛み合って初めて無変形になる(詳細は
     // drawStaffCard手前のコメント参照)。
+    // 2026-10-17: 左右位置スライダー分も同じ考え方でカードの横サイズを
+    // 縮める(縦と横、両方とも常に等倍スケールのままなので歪まない)。
+    const hTrimFrac = STAFFCARD_HSHIFT_MAX_TRIM_FRAC * Math.abs(photoHShiftFrac || 0);
+    W = Math.round(nW * scale * (1 - hTrimFrac));
     H = Math.round(nH * scale * (1 - photoVCropFrac));
   } else {
     W = 540; H = 764; // placeholder aspect ratio
@@ -782,10 +790,12 @@ async function downloadNow(){
   const romaji = document.getElementById('romajiInput').value.trim();
 
   // 2026-10-12: プレビューと同じく、頭を上に詰めるスライダー分だけHを
-  // 縮めてから渡す(Wはそのまま) -- プレビュー側と全く同じ計算にしておく
-  // ことで、プレビューで見た通りの構図がダウンロードした画像にもそのまま
-  // 出る(詳細はredrawPreview/drawStaffCard手前のコメント参照)。
-  const W = photoImg.width, H = Math.round(photoImg.height * (1 - photoVCropFrac));
+  // 縮めてから渡す -- プレビュー側と全く同じ計算にしておくことで、
+  // プレビューで見た通りの構図がダウンロードした画像にもそのまま出る
+  // (詳細はredrawPreview/drawStaffCard手前のコメント参照)。2026-10-17:
+  // 左右位置スライダー分のWの縮小も同様にプレビューと揃えてある。
+  const hTrimFrac = STAFFCARD_HSHIFT_MAX_TRIM_FRAC * Math.abs(photoHShiftFrac || 0);
+  const W = Math.round(photoImg.width * (1 - hTrimFrac)), H = Math.round(photoImg.height * (1 - photoVCropFrac));
   const off = document.createElement('canvas');
   off.width = W; off.height = H;
   const octx = off.getContext('2d');
@@ -985,25 +995,23 @@ function drawStaffCard(ctx, W, H, photoImage, kanji, romaji, logoImage, vCropFra
     const srcW = photoImage.naturalWidth || photoImage.width;
     const srcH = photoImage.naturalHeight || photoImage.height;
     const cropTopPx = Math.round(srcH * (vCropFrac || 0));
-    const baseW = srcW, baseH = srcH - cropTopPx;
-    // 2026-10-17: ズームスライダー用。vCropFracが選んだ範囲(baseW×baseH)
-    // の中心を軸に、STAFFCARD_ZOOM_MAX_SCALE倍まで寄る。縦位置スライダーは
-    // 上からのトリミングのみで拡大はしない(引き伸ばし防止)ため、顔が
-    // 写真内で小さい場合は対応できなかった -- その隙間を埋める、vCropFrac
-    // とは直交する別軸。幅も高さも同じ比率で縮めてから等倍で貼るだけなので、
-    // 縦横比は保たれ、歪みは発生しない。
+    // 2026-10-17: 左右位置スライダー用。縦位置(cropTopPx)と同じ「常に効く
+    // トリミング」として扱う -- ズームしていなくても見た目が変わる。
+    // hShiftFracが負なら右端を、正なら左端を、最大STAFFCARD_HSHIFT_MAX_
+    // TRIM_FRAC分だけ切り落として、残った方へ見る位置をずらす。
+    const hTrimPx = Math.round(srcW * STAFFCARD_HSHIFT_MAX_TRIM_FRAC * Math.abs(hShiftFrac || 0));
+    const cropLeftPx = (hShiftFrac || 0) > 0 ? hTrimPx : 0;
+    const baseW = srcW - hTrimPx, baseH = srcH - cropTopPx;
+    // 2026-10-17: ズームスライダー用。縦位置・左右位置で切り取った後の
+    // 範囲(baseW×baseH、左上はcropLeftPx,cropTopPx)の中心を軸に、
+    // STAFFCARD_ZOOM_MAX_SCALE倍まで寄る。縦位置・左右位置スライダーは
+    // トリミングのみで拡大はしない(引き伸ばし防止)ため、顔が写真内で
+    // 小さい場合は対応できなかった -- その隙間を埋める、直交する別軸。
+    // 幅も高さも同じ比率で縮めてから等倍で貼るだけなので、縦横比は保たれ、
+    // 歪みは発生しない。
     const zoomScale = 1 + (zoomFrac || 0) * (STAFFCARD_ZOOM_MAX_SCALE - 1);
     const zoomW = baseW / zoomScale, zoomH = baseH / zoomScale;
-    // 2026-10-17: 左右位置スライダー用。ズームで生まれた横の余白
-    // (baseW - zoomW)の範囲内で中心をずらす。hShiftFracは-1(左いっぱい)
-    // 〜+1(右いっぱい)、0が従来通りの中央。zoomScale=1(ズーム無し)だと
-    // 余白が0になるのでhShiftFracを動かしても何も変わらない -- これは
-    // バグではなく、ズームしていない状態ではずらす先が無いという自然な
-    // 帰結(UIのヒント文でも明記済み)。Math.maxで余白が万一負になる
-    // ケース(丸め誤差)を0にクランプし、ズレで描画範囲が元画像の外に
-    // はみ出さないようにしている。
-    const hSlack = Math.max(0, baseW - zoomW);
-    const zoomX = hSlack / 2 + (hShiftFrac || 0) * (hSlack / 2);
+    const zoomX = cropLeftPx + (baseW - zoomW) / 2;
     const zoomY = cropTopPx + (baseH - zoomH) / 2;
     ctx.drawImage(photoImage, zoomX, zoomY, zoomW, zoomH, 0, 0, W, H);
   } else {
